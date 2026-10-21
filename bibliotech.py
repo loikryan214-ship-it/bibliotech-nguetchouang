@@ -160,47 +160,50 @@ class Library:
               f"{member['name']}, retour avant le {due}")
         return True
 
-    # retour d'un document
-    def return_loan(self, lid):
-        ln = self.find_loan(lid)
-        if ln is None:
+    def loan_fee(self, loan, end):
+        """Jours de retard et pénalité d'un emprunt à la date end."""
+        days = days_late(loan, end)
+        book = self.find_book(loan["book"])
+        member = self.find_member(loan["member"])
+        return days, late_fee(days, book, member)
+
+    def return_loan(self, loan_id):
+        """Enregistre le retour d'un emprunt et sa pénalité éventuelle."""
+        loan = self.find_loan(loan_id)
+        if loan is None:
             print("Erreur : emprunt inconnu")
             return
-        if ln["returned"] != "":
+        if is_returned(loan):
             print("Erreur : emprunt deja rendu")
             return
-        bk = self.find_book(ln["book"])
-        mb = self.find_member(ln["member"])
-        t = get_today()
-        d = max((t - datetime.strptime(ln["due"], DATE_FORMAT).date()).days, 0)
-        f = late_fee(d, bk, mb)
-        ln["returned"] = str(t)
-        ln["fee"] = f
+        today = get_today()
+        days, fee = self.loan_fee(loan, today)
+        loan["returned"] = str(today)
+        loan["fee"] = fee
         self.save()
-        print("Retour enregistre : " + bk["title"] + ". Retard : " + str(d) + " jour(s). Penalite : " + "%.2f" % f + " EUR")
+        title = self.find_book(loan["book"])["title"]
+        print(f"Retour enregistre : {title}. Retard : {days} jour(s). "
+              f"Penalite : {fee:.2f} EUR")
 
-    # liste des retards + envoi des rappels
+    def overdue_loans(self):
+        return [loan for loan in self.loans if is_overdue(loan)]
+
     def overdue(self):
-        tmp = []
-        for x in self.loans:
-            if x["returned"] == "":
-                if datetime.strptime(x["due"], DATE_FORMAT).date() < get_today():
-                    tmp.append(x)
-        if len(tmp) == 0:
+        """Affiche les retards et envoie un rappel à chaque emprunteur."""
+        late_loans = sorted(self.overdue_loans(), key=lambda x: (x["due"], x["id"]))
+        if not late_loans:
             print("Aucun retard.")
             return
-        tmp.sort(key=lambda x: (x["due"], x["id"]))
         total = 0
-        for x in tmp:
-            book = self.find_book(x["book"])
-            member = self.find_member(x["member"])
-            nbj = (get_today() - datetime.strptime(x["due"], DATE_FORMAT).date()).days
-            p = late_fee(nbj, book, member)
-            total = total + p
-            print(x["id"] + " | " + member["name"] + " | " + book["title"] + " | " + str(nbj) + " jour(s) | " + "%.2f" % p + " EUR")
-            # envoi du mail
-            print("EMAIL -> " + member["email"] + " : Rappel, vous devez rendre '" + book["title"] + "' (retard " + str(nbj) + " jours)")
-        print("Total des penalites en cours : " + "%.2f" % total + " EUR")
+        for loan in late_loans:
+            book = self.find_book(loan["book"])
+            member = self.find_member(loan["member"])
+            days, fee = self.loan_fee(loan, get_today())
+            total = total + fee
+            print(f"{loan['id']} | {member['name']} | {book['title']} | "
+                  f"{days} jour(s) | {fee:.2f} EUR")
+            send_reminder(member, book, days)
+        print(f"Total des penalites en cours : {total:.2f} EUR")
 
     def report(self):
         data2 = {}
@@ -279,11 +282,11 @@ class Library:
         print("Export termine : " + str(n) + " lignes dans " + fname)
 
 
-def late_fee(days_late, book, member):
-    """Pénalité de retard d'un emprunt, arrondie au centime."""
-    if days_late <= 0:
+def late_fee(days, book, member):
+    """Pénalité pour days jours de retard, arrondie au centime."""
+    if days <= 0:
         return 0
-    fee = days_late * DAILY_FEE.get(book["kind"], DEFAULT_DAILY_FEE)
+    fee = days * DAILY_FEE.get(book["kind"], DEFAULT_DAILY_FEE)
     fee = fee * FEE_RATE.get(member["type"], DEFAULT_FEE_RATE)
     return round(min(fee, book["price"]), 2)
 
@@ -299,6 +302,12 @@ def days_late(loan, end):
 
 def is_overdue(loan):
     return not is_returned(loan) and parse_date(loan["due"]) < get_today()
+
+
+def send_reminder(member, book, days):
+    """Envoi (simulé) d'un e-mail de rappel."""
+    print(f"EMAIL -> {member['email']} : Rappel, vous devez rendre "
+          f"'{book['title']}' (retard {days} jours)")
 
 
 def get_today():
