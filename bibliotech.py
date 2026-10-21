@@ -33,12 +33,12 @@ DEFAULT_MAX_LOANS = 3
 DAILY_FEE = {"book": 0.5, "dvd": 1.0, "magazine": 0.2}
 DEFAULT_DAILY_FEE = DAILY_FEE["book"]
 
-# Nombre de documents affichés dans le classement du rapport
-TOP_BOOKS_COUNT = 3
-
 # Coefficient appliqué à la pénalité, selon le type de membre
 FEE_RATE = {"student": 0.5, "premium": 0}
 DEFAULT_FEE_RATE = 1
+
+# Nombre de documents affichés dans le classement du rapport
+TOP_BOOKS_COUNT = 3
 
 
 def read_csv_rows(filename):
@@ -46,6 +46,43 @@ def read_csv_rows(filename):
     with open(os.path.join(DATA, filename), encoding="utf-8") as f:
         lines = f.readlines()
     return [line.strip().split(";") for line in lines[1:] if line.strip()]
+
+
+def parse_book(row):
+    return {
+        "id": row[0],
+        "title": row[1],
+        "author": row[2],
+        "kind": row[3],
+        "price": float(row[4]),
+        "copies": int(row[5]),
+    }
+
+
+def parse_member(row):
+    return {
+        "id": row[0],
+        "name": row[1],
+        "email": row[2],
+        "type": row[3],
+        "active": row[4] == "1",
+    }
+
+
+def parse_loan(row):
+    try:
+        fee = float(row[6])
+    except (ValueError, IndexError):
+        fee = 0
+    return {
+        "id": row[0],
+        "member": row[1],
+        "book": row[2],
+        "start": row[3],
+        "due": row[4],
+        "returned": row[5],
+        "fee": fee,
+    }
 
 
 def find_by_id(records, record_id):
@@ -69,43 +106,9 @@ class Library:
 
     def load(self):
         """Charge les documents, les membres et les emprunts depuis DATA."""
-        for x in read_csv_rows("books.csv"):
-            self.books.append(
-                {
-                    "id": x[0],
-                    "title": x[1],
-                    "author": x[2],
-                    "kind": x[3],
-                    "price": float(x[4]),
-                    "copies": int(x[5]),
-                }
-            )
-        for x in read_csv_rows("members.csv"):
-            self.members.append(
-                {
-                    "id": x[0],
-                    "name": x[1],
-                    "email": x[2],
-                    "type": x[3],
-                    "active": x[4] == "1",
-                }
-            )
-        for x in read_csv_rows("loans.csv"):
-            try:
-                fee = float(x[6])
-            except (ValueError, IndexError):
-                fee = 0
-            self.loans.append(
-                {
-                    "id": x[0],
-                    "member": x[1],
-                    "book": x[2],
-                    "start": x[3],
-                    "due": x[4],
-                    "returned": x[5],
-                    "fee": fee,
-                }
-            )
+        self.books = [parse_book(row) for row in read_csv_rows("books.csv")]
+        self.members = [parse_member(row) for row in read_csv_rows("members.csv")]
+        self.loans = [parse_loan(row) for row in read_csv_rows("loans.csv")]
         if DEBUG:
             print("chargement ok", len(self.books), len(self.members), len(self.loans))
 
@@ -113,15 +116,15 @@ class Library:
         """Réécrit le fichier des emprunts."""
         with open(os.path.join(DATA, "loans.csv"), "w", encoding="utf-8") as f:
             f.write("id;member_id;book_id;start;due;returned;fee\n")
-            for x in self.loans:
+            for loan in self.loans:
                 fields = [
-                    x["id"],
-                    x["member"],
-                    x["book"],
-                    x["start"],
-                    x["due"],
-                    x["returned"],
-                    f"{x['fee']:.2f}",
+                    loan["id"],
+                    loan["member"],
+                    loan["book"],
+                    loan["start"],
+                    loan["due"],
+                    loan["returned"],
+                    f"{loan['fee']:.2f}",
                 ]
                 f.write(";".join(fields) + "\n")
 
