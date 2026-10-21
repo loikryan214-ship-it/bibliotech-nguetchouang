@@ -28,7 +28,7 @@ class Library:
             if line.strip() == "":
                 continue
             x = line.strip().split(";")
-            self.b.append({"id": x[0], "title": x[1], "author": x[2], "kind": x[3], "price": eval(x[4]), "copies": int(x[5])})
+            self.b.append({"id": x[0], "title": x[1], "author": x[2], "kind": x[3], "price": float(x[4]), "copies": int(x[5])})
         f = open(DATA + "/members.csv")
         lines = f.readlines()
         f.close()
