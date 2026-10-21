@@ -1,0 +1,8 @@
+$ bibliotech members --today 2026-10-21
+M001 | Alice Martin | student | actif | 1 emprunt(s) en cours
+M002 | Bruno Lefevre | standard | actif | 2 emprunt(s) en cours
+M003 | Chloe Dubois | premium | actif | 2 emprunt(s) en cours
+M004 | David Moreau | standard | inactif | 0 emprunt(s) en cours
+M005 | Emma Laurent | standard | actif | 1 emprunt(s) en cours
+M006 | Farid Benali | student | actif | 2 emprunt(s) en cours
+[code de sortie : 0]

@@ -1,0 +1,9 @@
+$ bibliotech return L001 --today 2026-10-21
+Erreur : emprunt deja rendu
+[code de sortie : 0]
+$ bibliotech return L999 --today 2026-10-21
+Erreur : emprunt inconnu
+[code de sortie : 0]
+$ bibliotech return --today 2026-10-21
+Usage : return <id_emprunt>
+[code de sortie : 1]

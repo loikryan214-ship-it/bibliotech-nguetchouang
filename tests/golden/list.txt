@@ -1,0 +1,10 @@
+$ bibliotech list --today 2026-10-21
+B001 | Dune | Frank Herbert | book | 1/3 disponible(s)
+B002 | Le Petit Prince | Antoine de Saint-Exupery | book | 2/2 disponible(s)
+B003 | Fondation | Isaac Asimov | book | 0/1 disponible(s)
+B004 | Clean Code | Robert C. Martin | book | 0/2 disponible(s)
+B005 | Inception | Christopher Nolan | dvd | 1/1 disponible(s)
+B006 | Le Voyage de Chihiro | Hayao Miyazaki | dvd | 1/2 disponible(s)
+B007 | Science et Vie 1290 | Collectif | magazine | 3/4 disponible(s)
+B008 | L'Etranger | Albert Camus | book | 0/1 disponible(s)
+[code de sortie : 0]

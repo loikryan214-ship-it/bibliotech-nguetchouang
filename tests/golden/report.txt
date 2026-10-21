@@ -1,0 +1,16 @@
+$ bibliotech report --today 2026-10-21
+=== RAPPORT BIBLIOTECH ===
+Date : 2026-10-21
+Titres : 8 (16 exemplaires)
+Membres : 6 dont 5 actifs
+Emprunts : 12 au total, 8 en cours, 4 en retard
+Penalites encaissees : 11.50 EUR
+Penalites en attente : 14.30 EUR
+  - book : 9 emprunt(s)
+  - dvd : 2 emprunt(s)
+  - magazine : 1 emprunt(s)
+Top 3 :
+  1. Dune (3)
+  2. Clean Code (2)
+  3. Le Petit Prince (2)
+[code de sortie : 0]

@@ -1,0 +1,3 @@
+$ bibliotech fly --today 2026-10-21
+Commande inconnue : fly
+[code de sortie : 1]

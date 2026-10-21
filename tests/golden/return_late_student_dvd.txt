@@ -1,0 +1,25 @@
+$ bibliotech return L004 --today 2026-10-21
+Retour enregistre : Le Voyage de Chihiro. Retard : 13 jour(s). Penalite : 6.50 EUR
+[code de sortie : 0]
+$ bibliotech members --today 2026-10-21
+M001 | Alice Martin | student | actif | 0 emprunt(s) en cours
+M002 | Bruno Lefevre | standard | actif | 2 emprunt(s) en cours
+M003 | Chloe Dubois | premium | actif | 2 emprunt(s) en cours
+M004 | David Moreau | standard | inactif | 0 emprunt(s) en cours
+M005 | Emma Laurent | standard | actif | 1 emprunt(s) en cours
+M006 | Farid Benali | student | actif | 2 emprunt(s) en cours
+[code de sortie : 0]
+--- loans.csv ---
+id;member_id;book_id;start;due;returned;fee
+L001;M001;B001;2026-08-01;2026-08-22;2026-08-20;0.00
+L002;M002;B005;2026-09-01;2026-09-08;2026-09-12;4.00
+L003;M002;B003;2026-09-15;2026-10-06;;0.00
+L004;M001;B006;2026-10-01;2026-10-08;2026-10-21;6.50
+L005;M003;B004;2026-09-20;2026-10-11;;0.00
+L006;M005;B001;2026-10-10;2026-10-31;;0.00
+L007;M006;B007;2026-10-15;2026-10-18;;0.00
+L008;M005;B002;2026-07-01;2026-07-22;2026-09-30;7.50
+L009;M003;B001;2026-10-12;2026-11-02;;0.00
+L010;M002;B008;2026-10-14;2026-11-04;;0.00
+L011;M004;B002;2026-06-01;2026-06-22;2026-06-21;0.00
+L012;M006;B004;2026-10-05;2026-10-26;;0.00

@@ -1,0 +1,11 @@
+$ bibliotech overdue --today 2026-10-21
+L003 | Bruno Lefevre | Fondation | 15 jour(s) | 7.50 EUR
+EMAIL -> bruno.lefevre@example.com : Rappel, vous devez rendre 'Fondation' (retard 15 jours)
+L004 | Alice Martin | Le Voyage de Chihiro | 13 jour(s) | 6.50 EUR
+EMAIL -> alice.martin@example.com : Rappel, vous devez rendre 'Le Voyage de Chihiro' (retard 13 jours)
+L005 | Chloe Dubois | Clean Code | 10 jour(s) | 0.00 EUR
+EMAIL -> chloe.dubois@example.com : Rappel, vous devez rendre 'Clean Code' (retard 10 jours)
+L007 | Farid Benali | Science et Vie 1290 | 3 jour(s) | 0.30 EUR
+EMAIL -> farid.benali@example.com : Rappel, vous devez rendre 'Science et Vie 1290' (retard 3 jours)
+Total des penalites en cours : 14.30 EUR
+[code de sortie : 0]

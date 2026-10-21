@@ -1,0 +1,3 @@
+$ bibliotech borrow M005 --today 2026-10-21
+Usage : borrow <id_membre> <id_document>
+[code de sortie : 1]

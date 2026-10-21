@@ -1,0 +1,7 @@
+id;name;email;type;active
+M001;Alice Martin;alice.martin@example.com;student;1
+M002;Bruno Lefevre;bruno.lefevre@example.com;standard;1
+M003;Chloe Dubois;chloe.dubois@example.com;premium;1
+M004;David Moreau;david.moreau@example.com;standard;0
+M005;Emma Laurent;emma.laurent@example.com;standard;1
+M006;Farid Benali;farid.benali@example.com;student;1

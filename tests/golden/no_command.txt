@@ -1,0 +1,4 @@
+$ bibliotech --today 2026-10-21
+Usage : python bibliotech.py <commande> [arguments] [--today AAAA-MM-JJ]
+Commandes : list, members, borrow, return, overdue, report, export
+[code de sortie : 1]

@@ -1,0 +1,3 @@
+$ bibliotech borrow M004 B002 --today 2026-10-21
+Refus : membre inactif
+[code de sortie : 2]

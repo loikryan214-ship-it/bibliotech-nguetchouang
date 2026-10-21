@@ -1,0 +1,3 @@
+$ bibliotech overdue --today 2026-08-01
+Aucun retard.
+[code de sortie : 0]

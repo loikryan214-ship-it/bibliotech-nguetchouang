@@ -1,0 +1,3 @@
+$ bibliotech borrow M005 B001 --today 2026-10-21
+Refus : deja emprunte par ce membre
+[code de sortie : 2]

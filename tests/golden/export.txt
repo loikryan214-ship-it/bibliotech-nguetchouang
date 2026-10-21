@@ -1,0 +1,17 @@
+$ bibliotech export export.csv --today 2026-10-21
+Export termine : 12 lignes dans export.csv
+[code de sortie : 0]
+--- export.csv ---
+loan_id;member;title;start;due;returned;days_late;fee
+L001;Alice Martin;Dune;2026-08-01;2026-08-22;2026-08-20;0;0.00
+L002;Bruno Lefevre;Inception;2026-09-01;2026-09-08;2026-09-12;4;4.00
+L003;Bruno Lefevre;Fondation;2026-09-15;2026-10-06;;15;7.50
+L004;Alice Martin;Le Voyage de Chihiro;2026-10-01;2026-10-08;;13;6.50
+L005;Chloe Dubois;Clean Code;2026-09-20;2026-10-11;;10;0.00
+L006;Emma Laurent;Dune;2026-10-10;2026-10-31;;0;0.00
+L007;Farid Benali;Science et Vie 1290;2026-10-15;2026-10-18;;3;0.30
+L008;Emma Laurent;Le Petit Prince;2026-07-01;2026-07-22;2026-09-30;70;7.50
+L009;Chloe Dubois;Dune;2026-10-12;2026-11-02;;0;0.00
+L010;Bruno Lefevre;L'Etranger;2026-10-14;2026-11-04;;0;0.00
+L011;David Moreau;Le Petit Prince;2026-06-01;2026-06-22;2026-06-21;0;0.00
+L012;Farid Benali;Clean Code;2026-10-05;2026-10-26;;0;0.00

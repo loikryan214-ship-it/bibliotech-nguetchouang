@@ -1,0 +1,9 @@
+id;title;author;kind;price;copies
+B001;Dune;Frank Herbert;book;12.90;3
+B002;Le Petit Prince;Antoine de Saint-Exupery;book;7.50;2
+B003;Fondation;Isaac Asimov;book;9.90;1
+B004;Clean Code;Robert C. Martin;book;34.00;2
+B005;Inception;Christopher Nolan;dvd;14.99;1
+B006;Le Voyage de Chihiro;Hayao Miyazaki;dvd;19.99;2
+B007;Science et Vie 1290;Collectif;magazine;5.50;4
+B008;L'Etranger;Albert Camus;book;6.20;1

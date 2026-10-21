@@ -1,0 +1,6 @@
+$ bibliotech borrow M999 B001 --today 2026-10-21
+Erreur : membre inconnu
+[code de sortie : 2]
+$ bibliotech borrow M005 B999 --today 2026-10-21
+Erreur : livre inconnu
+[code de sortie : 2]
