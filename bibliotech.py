@@ -8,8 +8,13 @@ from collections import Counter
 from datetime import date, datetime, timedelta
 
 DATA = os.environ.get("BIBLIOTECH_DATA", "data")
+# Réglés par les options --today et --debug de la ligne de commande
 TODAY = None
-debug = False
+DEBUG = False
+
+EXIT_OK = 0
+EXIT_USAGE = 1
+EXIT_REFUSED = 2
 
 DATE_FORMAT = "%Y-%m-%d"
 
@@ -75,7 +80,7 @@ class Library:
                 fee = 0
             self.loans.append({"id": x[0], "member": x[1], "book": x[2], "start": x[3],
                            "due": x[4], "returned": x[5], "fee": fee})
-        if debug:
+        if DEBUG:
             print("chargement ok", len(self.books), len(self.members), len(self.loans))
 
     def save(self):
@@ -293,65 +298,102 @@ def send_reminder(member, book, days):
 
 
 def get_today():
-    global TODAY
-    if TODAY is None:
-        return date.today()
-    return TODAY
+    """Date du jour, ou date simulée avec l'option --today."""
+    return date.today() if TODAY is None else TODAY
+
+
+def cmd_list(lib, params):
+    for book in lib.books:
+        available = lib.available_copies(book["id"])
+        print(f"{book['id']} | {book['title']} | {book['author']} | {book['kind']} | "
+              f"{available}/{book['copies']} disponible(s)")
+    return EXIT_OK
+
+
+def cmd_members(lib, params):
+    for member in lib.members:
+        status = "actif" if member["active"] else "inactif"
+        count = lib.active_loan_count(member["id"])
+        print(f"{member['id']} | {member['name']} | {member['type']} | {status} | "
+              f"{count} emprunt(s) en cours")
+    return EXIT_OK
+
+
+def cmd_borrow(lib, params):
+    accepted = lib.borrow(params[0], params[1])
+    return EXIT_OK if accepted else EXIT_REFUSED
+
+
+def cmd_return(lib, params):
+    lib.return_loan(params[0])
+    return EXIT_OK
+
+
+def cmd_overdue(lib, params):
+    lib.overdue()
+    return EXIT_OK
+
+
+def cmd_report(lib, params):
+    lib.report()
+    return EXIT_OK
+
+
+def cmd_export(lib, params):
+    lib.export(params[0])
+    return EXIT_OK
+
+
+# nom de la commande -> (nombre d'arguments requis, message d'usage, fonction)
+COMMANDS = {
+    "list": (0, None, cmd_list),
+    "members": (0, None, cmd_members),
+    "borrow": (2, "Usage : borrow <id_membre> <id_document>", cmd_borrow),
+    "return": (1, "Usage : return <id_emprunt>", cmd_return),
+    "overdue": (0, None, cmd_overdue),
+    "report": (0, None, cmd_report),
+    "export": (1, "Usage : export <fichier.csv>", cmd_export),
+}
 
 
 def process(args):
-    global TODAY
+    """Exécute une commande et renvoie le code de sortie."""
     lib = Library()
-    if len(args) == 0:
-        print("Usage : python bibliotech.py <commande> [arguments] [--today AAAA-MM-JJ]")
-        print("Commandes : list, members, borrow, return, overdue, report, export")
-        return 1
-    cmd = args[0]
-    if cmd == "list":
-        for x in lib.books:
-            n = lib.available_copies(x["id"])
-            print(x["id"] + " | " + x["title"] + " | " + x["author"] + " | " + x["kind"] + " | " + str(n) + "/" + str(x["copies"]) + " disponible(s)")
-    elif cmd == "members":
-        for x in lib.members:
-            if x["active"]:
-                s = "actif"
-            else:
-                s = "inactif"
-            print(x["id"] + " | " + x["name"] + " | " + x["type"] + " | " + s + " | " + str(lib.active_loan_count(x["id"])) + " emprunt(s) en cours")
-    elif cmd == "borrow":
-        if len(args) < 3:
-            print("Usage : borrow <id_membre> <id_document>")
-            return 1
-        r = lib.borrow(args[1], args[2])
-        if not r:
-            return 2
-    elif cmd == "return":
-        if len(args) < 2:
-            print("Usage : return <id_emprunt>")
-            return 1
-        lib.return_loan(args[1])
-    elif cmd == "overdue":
-        lib.overdue()
-    elif cmd == "report":
-        lib.report()
-    elif cmd == "export":
-        if len(args) < 2:
-            print("Usage : export <fichier.csv>")
-            return 1
-        lib.export(args[1], ";")
-    else:
-        print("Commande inconnue : " + cmd)
-        return 1
-    return 0
+    if not args:
+        print("Usage : python bibliotech.py <commande> [arguments] "
+              "[--today AAAA-MM-JJ]")
+        print("Commandes : " + ", ".join(COMMANDS))
+        return EXIT_USAGE
+    name, params = args[0], args[1:]
+    if name not in COMMANDS:
+        print("Commande inconnue : " + name)
+        return EXIT_USAGE
+    required, usage, handler = COMMANDS[name]
+    if len(params) < required:
+        print(usage)
+        return EXIT_USAGE
+    return handler(lib, params)
+
+
+def parse_options(argv):
+    """Retire --today et --debug des arguments ; renvoie (args, today, debug)."""
+    args = list(argv)
+    today = None
+    if "--today" in args:
+        i = args.index("--today")
+        today = parse_date(args[i + 1])
+        del args[i:i + 2]
+    debug = "--debug" in args
+    if debug:
+        args.remove("--debug")
+    return args, today, debug
+
+
+def main(argv):
+    global TODAY, DEBUG
+    args, TODAY, DEBUG = parse_options(argv)
+    return process(args)
 
 
 if __name__ == "__main__":
-    a = sys.argv[1:]
-    if "--today" in a:
-        i = a.index("--today")
-        TODAY = datetime.strptime(a[i + 1], DATE_FORMAT).date()
-        a = a[:i] + a[i + 2:]
-    if "--debug" in a:
-        debug = True
-        a.remove("--debug")
-    sys.exit(process(a))
+    sys.exit(main(sys.argv[1:]))
