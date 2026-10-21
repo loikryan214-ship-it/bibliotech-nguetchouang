@@ -4,6 +4,7 @@
 
 import os
 import sys
+from collections import Counter
 from datetime import date, datetime, timedelta
 
 DATA = os.environ.get("BIBLIOTECH_DATA", "data")
@@ -23,6 +24,9 @@ DEFAULT_MAX_LOANS = 3
 # Pénalité par jour de retard (EUR), selon le type de document
 DAILY_FEE = {"book": 0.5, "dvd": 1.0, "magazine": 0.2}
 DEFAULT_DAILY_FEE = DAILY_FEE["book"]
+
+# Nombre de documents affichés dans le classement du rapport
+TOP_BOOKS_COUNT = 3
 
 # Coefficient appliqué à la pénalité, selon le type de membre
 FEE_RATE = {"student": 0.5, "premium": 0}
@@ -206,80 +210,58 @@ class Library:
         print(f"Total des penalites en cours : {total:.2f} EUR")
 
     def report(self):
-        data2 = {}
+        """Affiche le rapport d'activité de la bibliothèque."""
         print("=== RAPPORT BIBLIOTECH ===")
-        print("Date : " + str(get_today()))
-        c = 0
-        for x in self.books:
-            c = c + x["copies"]
-        print("Titres : " + str(len(self.books)) + " (" + str(c) + " exemplaires)")
-        a = 0
-        for x in self.members:
-            if x["active"]:
-                a = a + 1
-        print("Membres : " + str(len(self.members)) + " dont " + str(a) + " actifs")
-        en_cours = 0
-        en_retard = 0
-        encaisse = 0
-        a_payer = 0
-        for x in self.loans:
-            if x["returned"] == "":
-                en_cours = en_cours + 1
-                due = datetime.strptime(x["due"], DATE_FORMAT).date()
-                if due < get_today():
-                    en_retard = en_retard + 1
-                    bk = self.find_book(x["book"])
-                    mb = self.find_member(x["member"])
-                    j = (get_today() - due).days
-                    a_payer = a_payer + late_fee(j, bk, mb)
-            else:
-                encaisse = encaisse + x["fee"]
-            if x["book"] in data2:
-                data2[x["book"]] = data2[x["book"]] + 1
-            else:
-                data2[x["book"]] = 1
-        print("Emprunts : " + str(len(self.loans)) + " au total, " + str(en_cours) + " en cours, " + str(en_retard) + " en retard")
-        print("Penalites encaissees : " + "%.2f" % encaisse + " EUR")
-        print("Penalites en attente : " + "%.2f" % a_payer + " EUR")
-        # par type
-        k = {}
-        for x in self.loans:
-            bk = self.find_book(x["book"])
-            if bk["kind"] in k:
-                k[bk["kind"]] += 1
-            else:
-                k[bk["kind"]] = 1
-        for kk in sorted(k.keys()):
-            print("  - " + kk + " : " + str(k[kk]) + " emprunt(s)")
-        # top 3
-        lst = []
-        for key in data2:
-            lst.append((-data2[key], self.find_book(key)["title"]))
-        lst.sort()
-        print("Top 3 :")
-        i = 0
-        for x in lst:
-            if i < 3:
-                print("  " + str(i + 1) + ". " + x[1] + " (" + str(-x[0]) + ")")
-            i = i + 1
+        print(f"Date : {get_today()}")
+        self.print_collection_summary()
+        self.print_loan_summary()
+        self.print_loans_by_kind()
+        self.print_top_books(TOP_BOOKS_COUNT)
 
-    def export(self, fname, sep):
-        f = open(fname, "w", encoding="utf-8")
-        f.write("loan_id" + sep + "member" + sep + "title" + sep + "start" + sep + "due" + sep + "returned" + sep + "days_late" + sep + "fee\n")
-        n = 0
-        for x in self.loans:
-            bk = self.find_book(x["book"])
-            mb = self.find_member(x["member"])
-            if x["returned"] != "":
-                end = datetime.strptime(x["returned"], DATE_FORMAT).date()
-            else:
-                end = get_today()
-            dl = max((end - datetime.strptime(x["due"], DATE_FORMAT).date()).days, 0)
-            fee = late_fee(dl, bk, mb)
-            f.write(x["id"] + sep + mb["name"] + sep + bk["title"] + sep + x["start"] + sep + x["due"] + sep + x["returned"] + sep + str(dl) + sep + "%.2f" % fee + "\n")
-            n = n + 1
-        f.close()
-        print("Export termine : " + str(n) + " lignes dans " + fname)
+    def print_collection_summary(self):
+        copies = sum(book["copies"] for book in self.books)
+        active = sum(1 for member in self.members if member["active"])
+        print(f"Titres : {len(self.books)} ({copies} exemplaires)")
+        print(f"Membres : {len(self.members)} dont {active} actifs")
+
+    def print_loan_summary(self):
+        late_loans = self.overdue_loans()
+        collected = sum(loan["fee"] for loan in self.loans if is_returned(loan))
+        pending = sum(self.loan_fee(loan, get_today())[1] for loan in late_loans)
+        print(f"Emprunts : {len(self.loans)} au total, {len(self.open_loans())} "
+              f"en cours, {len(late_loans)} en retard")
+        print(f"Penalites encaissees : {collected:.2f} EUR")
+        print(f"Penalites en attente : {pending:.2f} EUR")
+
+    def print_loans_by_kind(self):
+        counts = Counter(self.find_book(loan["book"])["kind"] for loan in self.loans)
+        for kind in sorted(counts):
+            print(f"  - {kind} : {counts[kind]} emprunt(s)")
+
+    def print_top_books(self, limit):
+        counts = Counter(loan["book"] for loan in self.loans)
+        ranking = sorted(
+            (-count, self.find_book(book_id)["title"])
+            for book_id, count in counts.items()
+        )
+        print(f"Top {limit} :")
+        for rank, (negative_count, title) in enumerate(ranking[:limit], start=1):
+            print(f"  {rank}. {title} ({-negative_count})")
+
+    def export(self, filename, sep=";"):
+        """Exporte tous les emprunts, avec leur retard et leur pénalité."""
+        header = ["loan_id", "member", "title", "start", "due", "returned",
+                  "days_late", "fee"]
+        with open(filename, "w", encoding="utf-8") as f:
+            f.write(sep.join(header) + "\n")
+            for loan in self.loans:
+                end = parse_date(loan["returned"]) if is_returned(loan) else get_today()
+                days, fee = self.loan_fee(loan, end)
+                fields = [loan["id"], self.find_member(loan["member"])["name"],
+                          self.find_book(loan["book"])["title"], loan["start"],
+                          loan["due"], loan["returned"], str(days), f"{fee:.2f}"]
+                f.write(sep.join(fields) + "\n")
+        print(f"Export termine : {len(self.loans)} lignes dans {filename}")
 
 
 def late_fee(days, book, member):
