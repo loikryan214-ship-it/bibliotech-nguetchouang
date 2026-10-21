@@ -36,11 +36,7 @@ class Library:
             if line.strip() == "":
                 continue
             x = line.strip().split(";")
-            if x[4] == "1":
-                a = True
-            else:
-                a = False
-            self.m.append({"id": x[0], "name": x[1], "email": x[2], "type": x[3], "active": a})
+            self.m.append({"id": x[0], "name": x[1], "email": x[2], "type": x[3], "active": x[4] == "1"})
         f = open(DATA + "/loans.csv")
         lines = f.readlines()
         f.close()
@@ -53,7 +49,7 @@ class Library:
             except:
                 fee = 0
             self.l.append({"id": x[0], "member": x[1], "book": x[2], "start": x[3], "due": x[4], "returned": x[5], "fee": fee})
-        if debug == True:
+        if debug:
             print("chargement ok", len(self.b), len(self.m), len(self.l))
 
     def save(self):
@@ -97,17 +93,17 @@ class Library:
     # emprunter un document
     def do_stuff(self, mid, bid):
         mb = self.find("m", mid)
-        if mb != None:
+        if mb is not None:
             bk = self.find("b", bid)
-            if bk != None:
-                if mb["active"] == True:
+            if bk is not None:
+                if mb["active"]:
                     # verif retards
                     late = False
                     for x in self.l:
                         if x["member"] == mid and x["returned"] == "":
                             if datetime.strptime(x["due"], "%Y-%m-%d").date() < get_today():
                                 late = True
-                    if late == False:
+                    if not late:
                         # verif nombre max
                         if mb["type"] == "student":
                             mx = 5
@@ -167,7 +163,7 @@ class Library:
     # retour d'un document
     def ret(self, lid):
         ln = self.find("l", lid)
-        if ln == None:
+        if ln is None:
             print("Erreur : emprunt inconnu")
             return
         if ln["returned"] != "":
@@ -252,7 +248,7 @@ class Library:
         print("Titres : " + str(len(self.b)) + " (" + str(c) + " exemplaires)")
         a = 0
         for x in self.m:
-            if x["active"] == True:
+            if x["active"]:
                 a = a + 1
         print("Membres : " + str(len(self.m)) + " dont " + str(a) + " actifs")
         en_cours = 0
@@ -356,7 +352,7 @@ class Library:
 
 def get_today():
     global TODAY
-    if TODAY == None:
+    if TODAY is None:
         return date.today()
     return TODAY
 
@@ -385,7 +381,7 @@ def process(args):
             print("Usage : borrow <id_membre> <id_document>")
             return 1
         r = lib.do_stuff(args[1], args[2])
-        if r == False:
+        if not r:
             return 2
     elif cmd == "return":
         if len(args) < 2:
