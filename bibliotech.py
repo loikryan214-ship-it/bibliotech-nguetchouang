@@ -1,442 +1,472 @@
-# BiblioTech v1.3
-# gestion de la bibliotheque municipale
-# auteur : stagiaire 2019, modifie par plusieurs personnes depuis
+"""BiblioTech : gestion en ligne de commande d'une bibliothèque municipale.
 
-import os, sys
-import datetime
-from datetime import *
-import json
+Catalogue, membres, emprunts, retours, pénalités de retard, rappels et rapports.
+Voir README.md pour les commandes disponibles et les règles métier.
+"""
 
+import os
+import sys
+from collections import Counter
+from datetime import date, datetime, timedelta
+
+# Dossier des fichiers CSV (modifiable par la variable d'environnement)
 DATA = os.environ.get("BIBLIOTECH_DATA", "data")
+# Réglés par les options --today et --debug de la ligne de commande
 TODAY = None
-debug = False
-cache = {}
+DEBUG = False
+
+EXIT_OK = 0
+EXIT_USAGE = 1
+EXIT_REFUSED = 2
+
+DATE_FORMAT = "%Y-%m-%d"
+
+# Durée d'emprunt en jours, selon le type de document
+LOAN_DAYS = {"book": 21, "dvd": 7, "magazine": 3}
+DEFAULT_LOAN_DAYS = LOAN_DAYS["book"]
+
+# Nombre maximum d'emprunts simultanés, selon le type de membre
+MAX_LOANS = {"student": 5, "premium": 8}
+DEFAULT_MAX_LOANS = 3
+
+# Pénalité par jour de retard (EUR), selon le type de document
+DAILY_FEE = {"book": 0.5, "dvd": 1.0, "magazine": 0.2}
+DEFAULT_DAILY_FEE = DAILY_FEE["book"]
+
+# Coefficient appliqué à la pénalité, selon le type de membre
+FEE_RATE = {"student": 0.5, "premium": 0}
+DEFAULT_FEE_RATE = 1
+
+# Nombre de documents affichés dans le classement du rapport
+TOP_BOOKS_COUNT = 3
+
+
+def read_csv_rows(filename):
+    """Lignes non vides d'un fichier CSV de DATA (sans l'en-tête), découpées."""
+    with open(os.path.join(DATA, filename), encoding="utf-8") as f:
+        lines = f.readlines()
+    return [line.strip().split(";") for line in lines[1:] if line.strip()]
+
+
+def parse_book(row):
+    return {
+        "id": row[0],
+        "title": row[1],
+        "author": row[2],
+        "kind": row[3],
+        "price": float(row[4]),
+        "copies": int(row[5]),
+    }
+
+
+def parse_member(row):
+    return {
+        "id": row[0],
+        "name": row[1],
+        "email": row[2],
+        "type": row[3],
+        "active": row[4] == "1",
+    }
+
+
+def parse_loan(row):
+    try:
+        fee = float(row[6])
+    except (ValueError, IndexError):
+        fee = 0
+    return {
+        "id": row[0],
+        "member": row[1],
+        "book": row[2],
+        "start": row[3],
+        "due": row[4],
+        "returned": row[5],
+        "fee": fee,
+    }
+
+
+def find_by_id(records, record_id):
+    """Premier enregistrement portant cet identifiant, ou None."""
+    for record in records:
+        if record["id"] == record_id:
+            return record
+    return None
+
+
+def is_returned(loan):
+    return loan["returned"] != ""
 
 
 class Library:
-
     def __init__(self):
-        self.b = []
-        self.m = []
-        self.l = []
-        self.plugins = {}
+        self.books = []
+        self.members = []
+        self.loans = []
         self.load()
 
-    # chargement des donnees
     def load(self):
-        f = open(DATA + "/books.csv")
-        lines = f.readlines()
-        f.close()
-        for line in lines[1:]:
-            if line.strip() == "":
-                continue
-            x = line.strip().split(";")
-            self.b.append({"id": x[0], "title": x[1], "author": x[2], "kind": x[3], "price": eval(x[4]), "copies": int(x[5])})
-        f = open(DATA + "/members.csv")
-        lines = f.readlines()
-        f.close()
-        for line in lines[1:]:
-            if line.strip() == "":
-                continue
-            x = line.strip().split(";")
-            if x[4] == "1":
-                a = True
-            else:
-                a = False
-            self.m.append({"id": x[0], "name": x[1], "email": x[2], "type": x[3], "active": a})
-        f = open(DATA + "/loans.csv")
-        lines = f.readlines()
-        f.close()
-        for line in lines[1:]:
-            if line.strip() == "":
-                continue
-            x = line.strip().split(";")
-            try:
-                fee = float(x[6])
-            except:
-                fee = 0
-            self.l.append({"id": x[0], "member": x[1], "book": x[2], "start": x[3], "due": x[4], "returned": x[5], "fee": fee})
-        if debug == True:
-            print("chargement ok", len(self.b), len(self.m), len(self.l))
+        """Charge les documents, les membres et les emprunts depuis DATA."""
+        self.books = [parse_book(row) for row in read_csv_rows("books.csv")]
+        self.members = [parse_member(row) for row in read_csv_rows("members.csv")]
+        self.loans = [parse_loan(row) for row in read_csv_rows("loans.csv")]
+        if DEBUG:
+            print("chargement ok", len(self.books), len(self.members), len(self.loans))
 
     def save(self):
-        f = open(DATA + "/loans.csv", "w")
-        f.write("id;member_id;book_id;start;due;returned;fee\n")
-        for x in self.l:
-            f.write(x["id"] + ";" + x["member"] + ";" + x["book"] + ";" + x["start"] + ";" + x["due"] + ";" + x["returned"] + ";" + "%.2f" % x["fee"] + "\n")
-        f.close()
+        """Réécrit le fichier des emprunts."""
+        with open(os.path.join(DATA, "loans.csv"), "w", encoding="utf-8") as f:
+            f.write("id;member_id;book_id;start;due;returned;fee\n")
+            for loan in self.loans:
+                fields = [
+                    loan["id"],
+                    loan["member"],
+                    loan["book"],
+                    loan["start"],
+                    loan["due"],
+                    loan["returned"],
+                    f"{loan['fee']:.2f}",
+                ]
+                f.write(";".join(fields) + "\n")
 
-    # t = "b" pour livre, "m" pour membre, "l" pour emprunt
-    def find(self, t, id):
-        if t == "b":
-            for x in self.b:
-                if x["id"] == id:
-                    return x
-        elif t == "m":
-            for x in self.m:
-                if x["id"] == id:
-                    return x
-        elif t == "l":
-            for x in self.l:
-                if x["id"] == id:
-                    return x
+    def find_book(self, book_id):
+        return find_by_id(self.books, book_id)
+
+    def find_member(self, member_id):
+        return find_by_id(self.members, member_id)
+
+    def find_loan(self, loan_id):
+        return find_by_id(self.loans, loan_id)
+
+    def open_loans(self):
+        """Emprunts pas encore rendus."""
+        return [loan for loan in self.loans if not is_returned(loan)]
+
+    def active_loan_count(self, member_id):
+        return sum(1 for loan in self.open_loans() if loan["member"] == member_id)
+
+    def available_copies(self, book_id):
+        book = self.find_book(book_id)
+        borrowed = sum(1 for loan in self.open_loans() if loan["book"] == book_id)
+        return book["copies"] - borrowed
+
+    def has_overdue_loan(self, member_id):
+        return any(
+            loan["member"] == member_id and is_overdue(loan)
+            for loan in self.open_loans()
+        )
+
+    def has_open_loan(self, member_id, book_id):
+        return any(
+            loan["member"] == member_id and loan["book"] == book_id
+            for loan in self.open_loans()
+        )
+
+    def next_loan_id(self):
+        last_number = max((int(loan["id"][1:]) for loan in self.loans), default=0)
+        return "L" + str(last_number + 1).zfill(3)
+
+    def borrow_refusal(self, member, book):
+        """Motif de refus d'un emprunt, ou None si l'emprunt est autorisé."""
+        if not member["active"]:
+            return "membre inactif"
+        if self.has_overdue_loan(member["id"]):
+            return "emprunts en retard"
+        limit = MAX_LOANS.get(member["type"], DEFAULT_MAX_LOANS)
+        if self.active_loan_count(member["id"]) >= limit:
+            return f"limite d'emprunts atteinte ({limit})"
+        if self.has_open_loan(member["id"], book["id"]):
+            return "deja emprunte par ce membre"
+        if self.available_copies(book["id"]) <= 0:
+            return "plus d'exemplaire disponible"
         return None
 
-    def nb(self, mid):
-        n = 0
-        for x in self.l:
-            if x["member"] == mid and x["returned"] == "":
-                n = n + 1
-        return n
-
-    def dispo(self, bid):
-        bk = self.find("b", bid)
-        n = 0
-        for x in self.l:
-            if x["book"] == bid and x["returned"] == "":
-                n = n + 1
-        return bk["copies"] - n
-
-    # emprunter un document
-    def do_stuff(self, mid, bid):
-        mb = self.find("m", mid)
-        if mb != None:
-            bk = self.find("b", bid)
-            if bk != None:
-                if mb["active"] == True:
-                    # verif retards
-                    late = False
-                    for x in self.l:
-                        if x["member"] == mid and x["returned"] == "":
-                            if datetime.strptime(x["due"], "%Y-%m-%d").date() < get_today():
-                                late = True
-                    if late == False:
-                        # verif nombre max
-                        if mb["type"] == "student":
-                            mx = 5
-                        elif mb["type"] == "premium":
-                            mx = 8
-                        else:
-                            mx = 3
-                        if self.nb(mid) < mx:
-                            deja = False
-                            for x in self.l:
-                                if x["member"] == mid and x["book"] == bid and x["returned"] == "":
-                                    deja = True
-                            if not deja:
-                                if self.dispo(bid) > 0:
-                                    # duree selon le type
-                                    if bk["kind"] == "book":
-                                        d = 21
-                                    elif bk["kind"] == "dvd":
-                                        d = 7
-                                    elif bk["kind"] == "magazine":
-                                        d = 3
-                                    else:
-                                        d = 21
-                                    t = get_today()
-                                    due = t + timedelta(days=d)
-                                    mx2 = 0
-                                    for x in self.l:
-                                        if int(x["id"][1:]) > mx2:
-                                            mx2 = int(x["id"][1:])
-                                    new_id = "L" + str(mx2 + 1).zfill(3)
-                                    self.l.append({"id": new_id, "member": mid, "book": bid, "start": str(t), "due": str(due), "returned": "", "fee": 0})
-                                    self.save()
-                                    print("Emprunt " + new_id + " enregistre : " + bk["title"] + " pour " + mb["name"] + ", retour avant le " + str(due))
-                                    return True
-                                else:
-                                    print("Refus : plus d'exemplaire disponible")
-                                    return False
-                            else:
-                                print("Refus : deja emprunte par ce membre")
-                                return False
-                        else:
-                            print("Refus : limite d'emprunts atteinte (" + str(mx) + ")")
-                            return False
-                    else:
-                        print("Refus : emprunts en retard")
-                        return False
-                else:
-                    print("Refus : membre inactif")
-                    return False
-            else:
-                print("Erreur : livre inconnu")
-                return False
-        else:
+    def borrow(self, member_id, book_id):
+        """Enregistre un emprunt. Renvoie True s'il a été accepté."""
+        member = self.find_member(member_id)
+        if member is None:
             print("Erreur : membre inconnu")
             return False
+        book = self.find_book(book_id)
+        if book is None:
+            print("Erreur : livre inconnu")
+            return False
+        refusal = self.borrow_refusal(member, book)
+        if refusal is not None:
+            print("Refus : " + refusal)
+            return False
+        start = get_today()
+        due = start + timedelta(days=LOAN_DAYS.get(book["kind"], DEFAULT_LOAN_DAYS))
+        loan_id = self.next_loan_id()
+        self.loans.append(
+            {
+                "id": loan_id,
+                "member": member_id,
+                "book": book_id,
+                "start": str(start),
+                "due": str(due),
+                "returned": "",
+                "fee": 0,
+            }
+        )
+        self.save()
+        print(
+            f"Emprunt {loan_id} enregistre : {book['title']} pour "
+            f"{member['name']}, retour avant le {due}"
+        )
+        return True
 
-    # retour d'un document
-    def ret(self, lid):
-        ln = self.find("l", lid)
-        if ln == None:
+    def loan_fee(self, loan, end):
+        """Jours de retard et pénalité d'un emprunt à la date end."""
+        days = days_late(loan, end)
+        book = self.find_book(loan["book"])
+        member = self.find_member(loan["member"])
+        return days, late_fee(days, book, member)
+
+    def return_loan(self, loan_id):
+        """Enregistre le retour d'un emprunt et sa pénalité éventuelle."""
+        loan = self.find_loan(loan_id)
+        if loan is None:
             print("Erreur : emprunt inconnu")
             return
-        if ln["returned"] != "":
+        if is_returned(loan):
             print("Erreur : emprunt deja rendu")
             return
-        bk = self.find("b", ln["book"])
-        mb = self.find("m", ln["member"])
-        t = get_today()
-        d = (t - datetime.strptime(ln["due"], "%Y-%m-%d").date()).days
-        if d > 0:
-            if bk["kind"] == "book":
-                f = d * 0.5
-            elif bk["kind"] == "dvd":
-                f = d * 1.0
-            elif bk["kind"] == "magazine":
-                f = d * 0.2
-            else:
-                f = d * 0.5
-            if mb["type"] == "student":
-                f = f * 0.5
-            elif mb["type"] == "premium":
-                f = 0
-            if f > bk["price"]:
-                f = bk["price"]
-        else:
-            f = 0
-            d = 0
-        f = round(f, 2)
-        ln["returned"] = str(t)
-        ln["fee"] = f
+        today = get_today()
+        days, fee = self.loan_fee(loan, today)
+        loan["returned"] = str(today)
+        loan["fee"] = fee
         self.save()
-        print("Retour enregistre : " + bk["title"] + ". Retard : " + str(d) + " jour(s). Penalite : " + "%.2f" % f + " EUR")
+        title = self.find_book(loan["book"])["title"]
+        print(
+            f"Retour enregistre : {title}. Retard : {days} jour(s). "
+            f"Penalite : {fee:.2f} EUR"
+        )
 
-    # liste des retards + envoi des rappels
+    def overdue_loans(self):
+        return [loan for loan in self.loans if is_overdue(loan)]
+
     def overdue(self):
-        tmp = []
-        for x in self.l:
-            if x["returned"] == "":
-                if datetime.strptime(x["due"], "%Y-%m-%d").date() < get_today():
-                    tmp.append(x)
-        if len(tmp) == 0:
+        """Affiche les retards et envoie un rappel à chaque emprunteur."""
+        late_loans = sorted(self.overdue_loans(), key=lambda x: (x["due"], x["id"]))
+        if not late_loans:
             print("Aucun retard.")
             return
-        tmp.sort(key=lambda x: (x["due"], x["id"]))
         total = 0
-        for x in tmp:
-            book = self.find("b", x["book"])
-            member = self.find("m", x["member"])
-            nbj = (get_today() - datetime.strptime(x["due"], "%Y-%m-%d").date()).days
-            # calcul penalite
-            if nbj > 0:
-                if book["kind"] == "book":
-                    p = nbj * 0.5
-                elif book["kind"] == "dvd":
-                    p = nbj * 1.0
-                elif book["kind"] == "magazine":
-                    p = nbj * 0.2
-                else:
-                    p = nbj * 0.5
-                if member["type"] == "student":
-                    p = p * 0.5
-                elif member["type"] == "premium":
-                    p = 0
-                if p > book["price"]:
-                    p = book["price"]
-            else:
-                p = 0
-            p = round(p, 2)
-            total = total + p
-            print(x["id"] + " | " + member["name"] + " | " + book["title"] + " | " + str(nbj) + " jour(s) | " + "%.2f" % p + " EUR")
-            # envoi du mail
-            print("EMAIL -> " + member["email"] + " : Rappel, vous devez rendre '" + book["title"] + "' (retard " + str(nbj) + " jours)")
-        print("Total des penalites en cours : " + "%.2f" % total + " EUR")
+        for loan in late_loans:
+            book = self.find_book(loan["book"])
+            member = self.find_member(loan["member"])
+            days, fee = self.loan_fee(loan, get_today())
+            total = total + fee
+            print(
+                f"{loan['id']} | {member['name']} | {book['title']} | "
+                f"{days} jour(s) | {fee:.2f} EUR"
+            )
+            send_reminder(member, book, days)
+        print(f"Total des penalites en cours : {total:.2f} EUR")
 
     def report(self):
-        data2 = {}
+        """Affiche le rapport d'activité de la bibliothèque."""
         print("=== RAPPORT BIBLIOTECH ===")
-        print("Date : " + str(get_today()))
-        c = 0
-        for x in self.b:
-            c = c + x["copies"]
-        print("Titres : " + str(len(self.b)) + " (" + str(c) + " exemplaires)")
-        a = 0
-        for x in self.m:
-            if x["active"] == True:
-                a = a + 1
-        print("Membres : " + str(len(self.m)) + " dont " + str(a) + " actifs")
-        en_cours = 0
-        en_retard = 0
-        encaisse = 0
-        a_payer = 0
-        for x in self.l:
-            if x["returned"] == "":
-                en_cours = en_cours + 1
-                due = datetime.strptime(x["due"], "%Y-%m-%d").date()
-                if due < get_today():
-                    en_retard = en_retard + 1
-                    bk = self.find("b", x["book"])
-                    mb = self.find("m", x["member"])
-                    j = (get_today() - due).days
-                    if j > 0:
-                        if bk["kind"] == "book":
-                            pen = j * 0.5
-                        elif bk["kind"] == "dvd":
-                            pen = j * 1.0
-                        elif bk["kind"] == "magazine":
-                            pen = j * 0.2
-                        else:
-                            pen = j * 0.5
-                        if mb["type"] == "student":
-                            pen = pen * 0.5
-                        elif mb["type"] == "premium":
-                            pen = 0
-                        if pen > bk["price"]:
-                            pen = bk["price"]
-                    else:
-                        pen = 0
-                    a_payer = a_payer + round(pen, 2)
-            else:
-                encaisse = encaisse + x["fee"]
-            if x["book"] in data2:
-                data2[x["book"]] = data2[x["book"]] + 1
-            else:
-                data2[x["book"]] = 1
-        print("Emprunts : " + str(len(self.l)) + " au total, " + str(en_cours) + " en cours, " + str(en_retard) + " en retard")
-        print("Penalites encaissees : " + "%.2f" % encaisse + " EUR")
-        print("Penalites en attente : " + "%.2f" % a_payer + " EUR")
-        # par type
-        k = {}
-        for x in self.l:
-            bk = self.find("b", x["book"])
-            if bk["kind"] in k:
-                k[bk["kind"]] += 1
-            else:
-                k[bk["kind"]] = 1
-        for kk in sorted(k.keys()):
-            print("  - " + kk + " : " + str(k[kk]) + " emprunt(s)")
-        # top 3
-        lst = []
-        for key in data2:
-            lst.append((-data2[key], self.find("b", key)["title"]))
-        lst.sort()
-        print("Top 3 :")
-        i = 0
-        for x in lst:
-            if i < 3:
-                print("  " + str(i + 1) + ". " + x[1] + " (" + str(-x[0]) + ")")
-            i = i + 1
+        print(f"Date : {get_today()}")
+        self.print_collection_summary()
+        self.print_loan_summary()
+        self.print_loans_by_kind()
+        self.print_top_books(TOP_BOOKS_COUNT)
 
-    def export(self, fname, sep):
-        f = open(fname, "w")
-        f.write("loan_id" + sep + "member" + sep + "title" + sep + "start" + sep + "due" + sep + "returned" + sep + "days_late" + sep + "fee\n")
-        n = 0
-        for x in self.l:
-            bk = self.find("b", x["book"])
-            mb = self.find("m", x["member"])
-            if x["returned"] != "":
-                end = datetime.strptime(x["returned"], "%Y-%m-%d").date()
-            else:
-                end = get_today()
-            dl = (end - datetime.strptime(x["due"], "%Y-%m-%d").date()).days
-            if dl > 0:
-                if bk["kind"] == "book":
-                    fee = dl * 0.5
-                elif bk["kind"] == "dvd":
-                    fee = dl * 1.0
-                elif bk["kind"] == "magazine":
-                    fee = dl * 0.2
-                else:
-                    fee = dl * 0.5
-                if mb["type"] == "student":
-                    fee = fee * 0.5
-                elif mb["type"] == "premium":
-                    fee = 0
-                if fee > bk["price"]:
-                    fee = bk["price"]
-            else:
-                fee = 0
-                dl = 0
-            fee = round(fee, 2)
-            f.write(x["id"] + sep + mb["name"] + sep + bk["title"] + sep + x["start"] + sep + x["due"] + sep + x["returned"] + sep + str(dl) + sep + "%.2f" % fee + "\n")
-            n = n + 1
-        f.close()
-        print("Export termine : " + str(n) + " lignes dans " + fname)
+    def print_collection_summary(self):
+        copies = sum(book["copies"] for book in self.books)
+        active = sum(1 for member in self.members if member["active"])
+        print(f"Titres : {len(self.books)} ({copies} exemplaires)")
+        print(f"Membres : {len(self.members)} dont {active} actifs")
 
-    # systeme de plugins (pour plus tard)
-    def register_plugin(self, name, fn, priority=0, options={}):
-        self.plugins[name] = {"fn": fn, "priority": priority, "options": options}
+    def print_loan_summary(self):
+        late_loans = self.overdue_loans()
+        collected = sum(loan["fee"] for loan in self.loans if is_returned(loan))
+        pending = sum(self.loan_fee(loan, get_today())[1] for loan in late_loans)
+        print(
+            f"Emprunts : {len(self.loans)} au total, {len(self.open_loans())} "
+            f"en cours, {len(late_loans)} en retard"
+        )
+        print(f"Penalites encaissees : {collected:.2f} EUR")
+        print(f"Penalites en attente : {pending:.2f} EUR")
 
-    def run_plugins(self, event, payload=None):
-        res = []
-        for name in sorted(self.plugins, key=lambda n: self.plugins[n]["priority"]):
-            try:
-                res.append(self.plugins[name]["fn"](event, payload, **self.plugins[name]["options"]))
-            except:
-                pass
-        return res
+    def print_loans_by_kind(self):
+        counts = Counter(self.find_book(loan["book"])["kind"] for loan in self.loans)
+        for kind in sorted(counts):
+            print(f"  - {kind} : {counts[kind]} emprunt(s)")
+
+    def print_top_books(self, limit):
+        counts = Counter(loan["book"] for loan in self.loans)
+        ranking = sorted(
+            (-count, self.find_book(book_id)["title"])
+            for book_id, count in counts.items()
+        )
+        print(f"Top {limit} :")
+        for rank, (negative_count, title) in enumerate(ranking[:limit], start=1):
+            print(f"  {rank}. {title} ({-negative_count})")
+
+    def export(self, filename, sep=";"):
+        """Exporte tous les emprunts, avec leur retard et leur pénalité."""
+        header = [
+            "loan_id",
+            "member",
+            "title",
+            "start",
+            "due",
+            "returned",
+            "days_late",
+            "fee",
+        ]
+        with open(filename, "w", encoding="utf-8") as f:
+            f.write(sep.join(header) + "\n")
+            for loan in self.loans:
+                end = parse_date(loan["returned"]) if is_returned(loan) else get_today()
+                days, fee = self.loan_fee(loan, end)
+                fields = [
+                    loan["id"],
+                    self.find_member(loan["member"])["name"],
+                    self.find_book(loan["book"])["title"],
+                    loan["start"],
+                    loan["due"],
+                    loan["returned"],
+                    str(days),
+                    f"{fee:.2f}",
+                ]
+                f.write(sep.join(fields) + "\n")
+        print(f"Export termine : {len(self.loans)} lignes dans {filename}")
+
+
+def late_fee(days, book, member):
+    """Pénalité pour days jours de retard, arrondie au centime."""
+    if days <= 0:
+        return 0
+    fee = days * DAILY_FEE.get(book["kind"], DEFAULT_DAILY_FEE)
+    fee = fee * FEE_RATE.get(member["type"], DEFAULT_FEE_RATE)
+    return round(min(fee, book["price"]), 2)
+
+
+def parse_date(text):
+    return datetime.strptime(text, DATE_FORMAT).date()
+
+
+def days_late(loan, end):
+    """Jours de retard d'un emprunt à la date end (0 s'il n'est pas en retard)."""
+    return max((end - parse_date(loan["due"])).days, 0)
+
+
+def is_overdue(loan):
+    return not is_returned(loan) and parse_date(loan["due"]) < get_today()
+
+
+def send_reminder(member, book, days):
+    """Envoi (simulé) d'un e-mail de rappel."""
+    print(
+        f"EMAIL -> {member['email']} : Rappel, vous devez rendre "
+        f"'{book['title']}' (retard {days} jours)"
+    )
 
 
 def get_today():
-    global TODAY
-    if TODAY == None:
-        return date.today()
-    return TODAY
+    """Date du jour, ou date simulée avec l'option --today."""
+    return date.today() if TODAY is None else TODAY
 
 
-# ancienne version du calcul, ne plus utiliser
-def old_calc_fee(days, kind):
-    if kind == "book":
-        return days * 0.3
-    return days * 0.8
+def cmd_list(lib, params):
+    for book in lib.books:
+        available = lib.available_copies(book["id"])
+        print(
+            f"{book['id']} | {book['title']} | {book['author']} | {book['kind']} | "
+            f"{available}/{book['copies']} disponible(s)"
+        )
+    return EXIT_OK
+
+
+def cmd_members(lib, params):
+    for member in lib.members:
+        status = "actif" if member["active"] else "inactif"
+        count = lib.active_loan_count(member["id"])
+        print(
+            f"{member['id']} | {member['name']} | {member['type']} | {status} | "
+            f"{count} emprunt(s) en cours"
+        )
+    return EXIT_OK
+
+
+def cmd_borrow(lib, params):
+    accepted = lib.borrow(params[0], params[1])
+    return EXIT_OK if accepted else EXIT_REFUSED
+
+
+def cmd_return(lib, params):
+    lib.return_loan(params[0])
+    return EXIT_OK
+
+
+def cmd_overdue(lib, params):
+    lib.overdue()
+    return EXIT_OK
+
+
+def cmd_report(lib, params):
+    lib.report()
+    return EXIT_OK
+
+
+def cmd_export(lib, params):
+    lib.export(params[0])
+    return EXIT_OK
+
+
+# nom de la commande -> (nombre d'arguments requis, message d'usage, fonction)
+COMMANDS = {
+    "list": (0, None, cmd_list),
+    "members": (0, None, cmd_members),
+    "borrow": (2, "Usage : borrow <id_membre> <id_document>", cmd_borrow),
+    "return": (1, "Usage : return <id_emprunt>", cmd_return),
+    "overdue": (0, None, cmd_overdue),
+    "report": (0, None, cmd_report),
+    "export": (1, "Usage : export <fichier.csv>", cmd_export),
+}
 
 
 def process(args):
-    global TODAY
-    lib = Library()
-    if len(args) == 0:
-        print("Usage : python bibliotech.py <commande> [arguments] [--today AAAA-MM-JJ]")
-        print("Commandes : list, members, borrow, return, overdue, report, export")
-        return 1
-    cmd = args[0]
-    if cmd == "list":
-        for x in lib.b:
-            n = lib.dispo(x["id"])
-            print(x["id"] + " | " + x["title"] + " | " + x["author"] + " | " + x["kind"] + " | " + str(n) + "/" + str(x["copies"]) + " disponible(s)")
-    elif cmd == "members":
-        for x in lib.m:
-            if x["active"]:
-                s = "actif"
-            else:
-                s = "inactif"
-            print(x["id"] + " | " + x["name"] + " | " + x["type"] + " | " + s + " | " + str(lib.nb(x["id"])) + " emprunt(s) en cours")
-    elif cmd == "borrow":
-        if len(args) < 3:
-            print("Usage : borrow <id_membre> <id_document>")
-            return 1
-        r = lib.do_stuff(args[1], args[2])
-        if r == False:
-            return 2
-    elif cmd == "return":
-        if len(args) < 2:
-            print("Usage : return <id_emprunt>")
-            return 1
-        lib.ret(args[1])
-    elif cmd == "overdue":
-        lib.overdue()
-    elif cmd == "report":
-        lib.report()
-    elif cmd == "export":
-        if len(args) < 2:
-            print("Usage : export <fichier.csv>")
-            return 1
-        lib.export(args[1], ";")
-    else:
-        print("Commande inconnue : " + cmd)
-        return 1
-    return 0
+    """Exécute une commande et renvoie le code de sortie."""
+    if not args:
+        print(
+            "Usage : python bibliotech.py <commande> [arguments] [--today AAAA-MM-JJ]"
+        )
+        print("Commandes : " + ", ".join(COMMANDS))
+        return EXIT_USAGE
+    name, params = args[0], args[1:]
+    if name not in COMMANDS:
+        print("Commande inconnue : " + name)
+        return EXIT_USAGE
+    required, usage, handler = COMMANDS[name]
+    if len(params) < required:
+        print(usage)
+        return EXIT_USAGE
+    return handler(Library(), params)
+
+
+def parse_options(argv):
+    """Retire --today et --debug des arguments ; renvoie (args, today, debug)."""
+    args = list(argv)
+    today = None
+    if "--today" in args:
+        i = args.index("--today")
+        today = parse_date(args[i + 1])
+        del args[i : i + 2]
+    debug = "--debug" in args
+    if debug:
+        args.remove("--debug")
+    return args, today, debug
+
+
+def main(argv):
+    global TODAY, DEBUG
+    args, TODAY, DEBUG = parse_options(argv)
+    return process(args)
 
 
 if __name__ == "__main__":
-    a = sys.argv[1:]
-    if "--today" in a:
-        i = a.index("--today")
-        TODAY = datetime.strptime(a[i + 1], "%Y-%m-%d").date()
-        a = a[:i] + a[i + 2:]
-    if "--debug" in a:
-        debug = True
-        a.remove("--debug")
-    sys.exit(process(a))
+    sys.exit(main(sys.argv[1:]))
