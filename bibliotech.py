@@ -1,12 +1,15 @@
-# BiblioTech v1.3
-# gestion de la bibliotheque municipale
-# auteur : stagiaire 2019, modifie par plusieurs personnes depuis
+"""BiblioTech : gestion en ligne de commande d'une bibliothèque municipale.
+
+Catalogue, membres, emprunts, retours, pénalités de retard, rappels et rapports.
+Voir README.md pour les commandes disponibles et les règles métier.
+"""
 
 import os
 import sys
 from collections import Counter
 from datetime import date, datetime, timedelta
 
+# Dossier des fichiers CSV (modifiable par la variable d'environnement)
 DATA = os.environ.get("BIBLIOTECH_DATA", "data")
 # Réglés par les options --today et --debug de la ligne de commande
 TODAY = None
@@ -58,7 +61,6 @@ def is_returned(loan):
 
 
 class Library:
-
     def __init__(self):
         self.books = []
         self.members = []
@@ -68,18 +70,42 @@ class Library:
     def load(self):
         """Charge les documents, les membres et les emprunts depuis DATA."""
         for x in read_csv_rows("books.csv"):
-            self.books.append({"id": x[0], "title": x[1], "author": x[2], "kind": x[3],
-                           "price": float(x[4]), "copies": int(x[5])})
+            self.books.append(
+                {
+                    "id": x[0],
+                    "title": x[1],
+                    "author": x[2],
+                    "kind": x[3],
+                    "price": float(x[4]),
+                    "copies": int(x[5]),
+                }
+            )
         for x in read_csv_rows("members.csv"):
-            self.members.append({"id": x[0], "name": x[1], "email": x[2], "type": x[3],
-                           "active": x[4] == "1"})
+            self.members.append(
+                {
+                    "id": x[0],
+                    "name": x[1],
+                    "email": x[2],
+                    "type": x[3],
+                    "active": x[4] == "1",
+                }
+            )
         for x in read_csv_rows("loans.csv"):
             try:
                 fee = float(x[6])
             except (ValueError, IndexError):
                 fee = 0
-            self.loans.append({"id": x[0], "member": x[1], "book": x[2], "start": x[3],
-                           "due": x[4], "returned": x[5], "fee": fee})
+            self.loans.append(
+                {
+                    "id": x[0],
+                    "member": x[1],
+                    "book": x[2],
+                    "start": x[3],
+                    "due": x[4],
+                    "returned": x[5],
+                    "fee": fee,
+                }
+            )
         if DEBUG:
             print("chargement ok", len(self.books), len(self.members), len(self.loans))
 
@@ -88,8 +114,15 @@ class Library:
         with open(os.path.join(DATA, "loans.csv"), "w", encoding="utf-8") as f:
             f.write("id;member_id;book_id;start;due;returned;fee\n")
             for x in self.loans:
-                fields = [x["id"], x["member"], x["book"], x["start"], x["due"],
-                          x["returned"], f"{x['fee']:.2f}"]
+                fields = [
+                    x["id"],
+                    x["member"],
+                    x["book"],
+                    x["start"],
+                    x["due"],
+                    x["returned"],
+                    f"{x['fee']:.2f}",
+                ]
                 f.write(";".join(fields) + "\n")
 
     def find_book(self, book_id):
@@ -161,12 +194,22 @@ class Library:
         start = get_today()
         due = start + timedelta(days=LOAN_DAYS.get(book["kind"], DEFAULT_LOAN_DAYS))
         loan_id = self.next_loan_id()
-        self.loans.append({"id": loan_id, "member": member_id, "book": book_id,
-                           "start": str(start), "due": str(due), "returned": "",
-                           "fee": 0})
+        self.loans.append(
+            {
+                "id": loan_id,
+                "member": member_id,
+                "book": book_id,
+                "start": str(start),
+                "due": str(due),
+                "returned": "",
+                "fee": 0,
+            }
+        )
         self.save()
-        print(f"Emprunt {loan_id} enregistre : {book['title']} pour "
-              f"{member['name']}, retour avant le {due}")
+        print(
+            f"Emprunt {loan_id} enregistre : {book['title']} pour "
+            f"{member['name']}, retour avant le {due}"
+        )
         return True
 
     def loan_fee(self, loan, end):
@@ -191,8 +234,10 @@ class Library:
         loan["fee"] = fee
         self.save()
         title = self.find_book(loan["book"])["title"]
-        print(f"Retour enregistre : {title}. Retard : {days} jour(s). "
-              f"Penalite : {fee:.2f} EUR")
+        print(
+            f"Retour enregistre : {title}. Retard : {days} jour(s). "
+            f"Penalite : {fee:.2f} EUR"
+        )
 
     def overdue_loans(self):
         return [loan for loan in self.loans if is_overdue(loan)]
@@ -209,8 +254,10 @@ class Library:
             member = self.find_member(loan["member"])
             days, fee = self.loan_fee(loan, get_today())
             total = total + fee
-            print(f"{loan['id']} | {member['name']} | {book['title']} | "
-                  f"{days} jour(s) | {fee:.2f} EUR")
+            print(
+                f"{loan['id']} | {member['name']} | {book['title']} | "
+                f"{days} jour(s) | {fee:.2f} EUR"
+            )
             send_reminder(member, book, days)
         print(f"Total des penalites en cours : {total:.2f} EUR")
 
@@ -233,8 +280,10 @@ class Library:
         late_loans = self.overdue_loans()
         collected = sum(loan["fee"] for loan in self.loans if is_returned(loan))
         pending = sum(self.loan_fee(loan, get_today())[1] for loan in late_loans)
-        print(f"Emprunts : {len(self.loans)} au total, {len(self.open_loans())} "
-              f"en cours, {len(late_loans)} en retard")
+        print(
+            f"Emprunts : {len(self.loans)} au total, {len(self.open_loans())} "
+            f"en cours, {len(late_loans)} en retard"
+        )
         print(f"Penalites encaissees : {collected:.2f} EUR")
         print(f"Penalites en attente : {pending:.2f} EUR")
 
@@ -255,16 +304,31 @@ class Library:
 
     def export(self, filename, sep=";"):
         """Exporte tous les emprunts, avec leur retard et leur pénalité."""
-        header = ["loan_id", "member", "title", "start", "due", "returned",
-                  "days_late", "fee"]
+        header = [
+            "loan_id",
+            "member",
+            "title",
+            "start",
+            "due",
+            "returned",
+            "days_late",
+            "fee",
+        ]
         with open(filename, "w", encoding="utf-8") as f:
             f.write(sep.join(header) + "\n")
             for loan in self.loans:
                 end = parse_date(loan["returned"]) if is_returned(loan) else get_today()
                 days, fee = self.loan_fee(loan, end)
-                fields = [loan["id"], self.find_member(loan["member"])["name"],
-                          self.find_book(loan["book"])["title"], loan["start"],
-                          loan["due"], loan["returned"], str(days), f"{fee:.2f}"]
+                fields = [
+                    loan["id"],
+                    self.find_member(loan["member"])["name"],
+                    self.find_book(loan["book"])["title"],
+                    loan["start"],
+                    loan["due"],
+                    loan["returned"],
+                    str(days),
+                    f"{fee:.2f}",
+                ]
                 f.write(sep.join(fields) + "\n")
         print(f"Export termine : {len(self.loans)} lignes dans {filename}")
 
@@ -293,8 +357,10 @@ def is_overdue(loan):
 
 def send_reminder(member, book, days):
     """Envoi (simulé) d'un e-mail de rappel."""
-    print(f"EMAIL -> {member['email']} : Rappel, vous devez rendre "
-          f"'{book['title']}' (retard {days} jours)")
+    print(
+        f"EMAIL -> {member['email']} : Rappel, vous devez rendre "
+        f"'{book['title']}' (retard {days} jours)"
+    )
 
 
 def get_today():
@@ -305,8 +371,10 @@ def get_today():
 def cmd_list(lib, params):
     for book in lib.books:
         available = lib.available_copies(book["id"])
-        print(f"{book['id']} | {book['title']} | {book['author']} | {book['kind']} | "
-              f"{available}/{book['copies']} disponible(s)")
+        print(
+            f"{book['id']} | {book['title']} | {book['author']} | {book['kind']} | "
+            f"{available}/{book['copies']} disponible(s)"
+        )
     return EXIT_OK
 
 
@@ -314,8 +382,10 @@ def cmd_members(lib, params):
     for member in lib.members:
         status = "actif" if member["active"] else "inactif"
         count = lib.active_loan_count(member["id"])
-        print(f"{member['id']} | {member['name']} | {member['type']} | {status} | "
-              f"{count} emprunt(s) en cours")
+        print(
+            f"{member['id']} | {member['name']} | {member['type']} | {status} | "
+            f"{count} emprunt(s) en cours"
+        )
     return EXIT_OK
 
 
@@ -360,8 +430,9 @@ def process(args):
     """Exécute une commande et renvoie le code de sortie."""
     lib = Library()
     if not args:
-        print("Usage : python bibliotech.py <commande> [arguments] "
-              "[--today AAAA-MM-JJ]")
+        print(
+            "Usage : python bibliotech.py <commande> [arguments] [--today AAAA-MM-JJ]"
+        )
         print("Commandes : " + ", ".join(COMMANDS))
         return EXIT_USAGE
     name, params = args[0], args[1:]
@@ -382,7 +453,7 @@ def parse_options(argv):
     if "--today" in args:
         i = args.index("--today")
         today = parse_date(args[i + 1])
-        del args[i:i + 2]
+        del args[i : i + 2]
     debug = "--debug" in args
     if debug:
         args.remove("--debug")
