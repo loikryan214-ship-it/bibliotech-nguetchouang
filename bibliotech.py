@@ -29,6 +29,13 @@ FEE_RATE = {"student": 0.5, "premium": 0}
 DEFAULT_FEE_RATE = 1
 
 
+def read_csv_rows(filename):
+    """Lignes non vides d'un fichier CSV de DATA (sans l'en-tête), découpées."""
+    with open(os.path.join(DATA, filename), encoding="utf-8") as f:
+        lines = f.readlines()
+    return [line.strip().split(";") for line in lines[1:] if line.strip()]
+
+
 class Library:
 
     def __init__(self):
@@ -37,45 +44,32 @@ class Library:
         self.l = []
         self.load()
 
-    # chargement des donnees
     def load(self):
-        f = open(DATA + "/books.csv")
-        lines = f.readlines()
-        f.close()
-        for line in lines[1:]:
-            if line.strip() == "":
-                continue
-            x = line.strip().split(";")
-            self.b.append({"id": x[0], "title": x[1], "author": x[2], "kind": x[3], "price": float(x[4]), "copies": int(x[5])})
-        f = open(DATA + "/members.csv")
-        lines = f.readlines()
-        f.close()
-        for line in lines[1:]:
-            if line.strip() == "":
-                continue
-            x = line.strip().split(";")
-            self.m.append({"id": x[0], "name": x[1], "email": x[2], "type": x[3], "active": x[4] == "1"})
-        f = open(DATA + "/loans.csv")
-        lines = f.readlines()
-        f.close()
-        for line in lines[1:]:
-            if line.strip() == "":
-                continue
-            x = line.strip().split(";")
+        """Charge les documents, les membres et les emprunts depuis DATA."""
+        for x in read_csv_rows("books.csv"):
+            self.b.append({"id": x[0], "title": x[1], "author": x[2], "kind": x[3],
+                           "price": float(x[4]), "copies": int(x[5])})
+        for x in read_csv_rows("members.csv"):
+            self.m.append({"id": x[0], "name": x[1], "email": x[2], "type": x[3],
+                           "active": x[4] == "1"})
+        for x in read_csv_rows("loans.csv"):
             try:
                 fee = float(x[6])
             except (ValueError, IndexError):
                 fee = 0
-            self.l.append({"id": x[0], "member": x[1], "book": x[2], "start": x[3], "due": x[4], "returned": x[5], "fee": fee})
+            self.l.append({"id": x[0], "member": x[1], "book": x[2], "start": x[3],
+                           "due": x[4], "returned": x[5], "fee": fee})
         if debug:
             print("chargement ok", len(self.b), len(self.m), len(self.l))
 
     def save(self):
-        f = open(DATA + "/loans.csv", "w")
-        f.write("id;member_id;book_id;start;due;returned;fee\n")
-        for x in self.l:
-            f.write(x["id"] + ";" + x["member"] + ";" + x["book"] + ";" + x["start"] + ";" + x["due"] + ";" + x["returned"] + ";" + "%.2f" % x["fee"] + "\n")
-        f.close()
+        """Réécrit le fichier des emprunts."""
+        with open(os.path.join(DATA, "loans.csv"), "w", encoding="utf-8") as f:
+            f.write("id;member_id;book_id;start;due;returned;fee\n")
+            for x in self.l:
+                fields = [x["id"], x["member"], x["book"], x["start"], x["due"],
+                          x["returned"], f"{x['fee']:.2f}"]
+                f.write(";".join(fields) + "\n")
 
     # t = "b" pour livre, "m" pour membre, "l" pour emprunt
     def find(self, t, id):
@@ -267,7 +261,7 @@ class Library:
             i = i + 1
 
     def export(self, fname, sep):
-        f = open(fname, "w")
+        f = open(fname, "w", encoding="utf-8")
         f.write("loan_id" + sep + "member" + sep + "title" + sep + "start" + sep + "due" + sep + "returned" + sep + "days_late" + sep + "fee\n")
         n = 0
         for x in self.l:
