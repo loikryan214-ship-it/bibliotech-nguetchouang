@@ -46,7 +46,7 @@ class Library:
             x = line.strip().split(";")
             try:
                 fee = float(x[6])
-            except:
+            except (ValueError, IndexError):
                 fee = 0
             self.l.append({"id": x[0], "member": x[1], "book": x[2], "start": x[3], "due": x[4], "returned": x[5], "fee": fee})
         if debug:
