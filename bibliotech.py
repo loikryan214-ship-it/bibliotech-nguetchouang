@@ -10,6 +10,24 @@ DATA = os.environ.get("BIBLIOTECH_DATA", "data")
 TODAY = None
 debug = False
 
+DATE_FORMAT = "%Y-%m-%d"
+
+# Durée d'emprunt en jours, selon le type de document
+LOAN_DAYS = {"book": 21, "dvd": 7, "magazine": 3}
+DEFAULT_LOAN_DAYS = LOAN_DAYS["book"]
+
+# Nombre maximum d'emprunts simultanés, selon le type de membre
+MAX_LOANS = {"student": 5, "premium": 8}
+DEFAULT_MAX_LOANS = 3
+
+# Pénalité par jour de retard (EUR), selon le type de document
+DAILY_FEE = {"book": 0.5, "dvd": 1.0, "magazine": 0.2}
+DEFAULT_DAILY_FEE = DAILY_FEE["book"]
+
+# Coefficient appliqué à la pénalité, selon le type de membre
+FEE_RATE = {"student": 0.5, "premium": 0}
+DEFAULT_FEE_RATE = 1
+
 
 class Library:
 
@@ -101,16 +119,11 @@ class Library:
                     late = False
                     for x in self.l:
                         if x["member"] == mid and x["returned"] == "":
-                            if datetime.strptime(x["due"], "%Y-%m-%d").date() < get_today():
+                            if datetime.strptime(x["due"], DATE_FORMAT).date() < get_today():
                                 late = True
                     if not late:
                         # verif nombre max
-                        if mb["type"] == "student":
-                            mx = 5
-                        elif mb["type"] == "premium":
-                            mx = 8
-                        else:
-                            mx = 3
+                        mx = MAX_LOANS.get(mb["type"], DEFAULT_MAX_LOANS)
                         if self.nb(mid) < mx:
                             deja = False
                             for x in self.l:
@@ -119,14 +132,7 @@ class Library:
                             if not deja:
                                 if self.dispo(bid) > 0:
                                     # duree selon le type
-                                    if bk["kind"] == "book":
-                                        d = 21
-                                    elif bk["kind"] == "dvd":
-                                        d = 7
-                                    elif bk["kind"] == "magazine":
-                                        d = 3
-                                    else:
-                                        d = 21
+                                    d = LOAN_DAYS.get(bk["kind"], DEFAULT_LOAN_DAYS)
                                     t = get_today()
                                     due = t + timedelta(days=d)
                                     mx2 = 0
@@ -172,7 +178,7 @@ class Library:
         bk = self.find("b", ln["book"])
         mb = self.find("m", ln["member"])
         t = get_today()
-        d = max((t - datetime.strptime(ln["due"], "%Y-%m-%d").date()).days, 0)
+        d = max((t - datetime.strptime(ln["due"], DATE_FORMAT).date()).days, 0)
         f = late_fee(d, bk, mb)
         ln["returned"] = str(t)
         ln["fee"] = f
@@ -184,7 +190,7 @@ class Library:
         tmp = []
         for x in self.l:
             if x["returned"] == "":
-                if datetime.strptime(x["due"], "%Y-%m-%d").date() < get_today():
+                if datetime.strptime(x["due"], DATE_FORMAT).date() < get_today():
                     tmp.append(x)
         if len(tmp) == 0:
             print("Aucun retard.")
@@ -194,7 +200,7 @@ class Library:
         for x in tmp:
             book = self.find("b", x["book"])
             member = self.find("m", x["member"])
-            nbj = (get_today() - datetime.strptime(x["due"], "%Y-%m-%d").date()).days
+            nbj = (get_today() - datetime.strptime(x["due"], DATE_FORMAT).date()).days
             p = late_fee(nbj, book, member)
             total = total + p
             print(x["id"] + " | " + member["name"] + " | " + book["title"] + " | " + str(nbj) + " jour(s) | " + "%.2f" % p + " EUR")
@@ -222,7 +228,7 @@ class Library:
         for x in self.l:
             if x["returned"] == "":
                 en_cours = en_cours + 1
-                due = datetime.strptime(x["due"], "%Y-%m-%d").date()
+                due = datetime.strptime(x["due"], DATE_FORMAT).date()
                 if due < get_today():
                     en_retard = en_retard + 1
                     bk = self.find("b", x["book"])
@@ -268,10 +274,10 @@ class Library:
             bk = self.find("b", x["book"])
             mb = self.find("m", x["member"])
             if x["returned"] != "":
-                end = datetime.strptime(x["returned"], "%Y-%m-%d").date()
+                end = datetime.strptime(x["returned"], DATE_FORMAT).date()
             else:
                 end = get_today()
-            dl = max((end - datetime.strptime(x["due"], "%Y-%m-%d").date()).days, 0)
+            dl = max((end - datetime.strptime(x["due"], DATE_FORMAT).date()).days, 0)
             fee = late_fee(dl, bk, mb)
             f.write(x["id"] + sep + mb["name"] + sep + bk["title"] + sep + x["start"] + sep + x["due"] + sep + x["returned"] + sep + str(dl) + sep + "%.2f" % fee + "\n")
             n = n + 1
@@ -283,21 +289,9 @@ def late_fee(days_late, book, member):
     """Pénalité de retard d'un emprunt, arrondie au centime."""
     if days_late <= 0:
         return 0
-    if book["kind"] == "book":
-        fee = days_late * 0.5
-    elif book["kind"] == "dvd":
-        fee = days_late * 1.0
-    elif book["kind"] == "magazine":
-        fee = days_late * 0.2
-    else:
-        fee = days_late * 0.5
-    if member["type"] == "student":
-        fee = fee * 0.5
-    elif member["type"] == "premium":
-        fee = 0
-    if fee > book["price"]:
-        fee = book["price"]
-    return round(fee, 2)
+    fee = days_late * DAILY_FEE.get(book["kind"], DEFAULT_DAILY_FEE)
+    fee = fee * FEE_RATE.get(member["type"], DEFAULT_FEE_RATE)
+    return round(min(fee, book["price"]), 2)
 
 
 def get_today():
@@ -357,7 +351,7 @@ if __name__ == "__main__":
     a = sys.argv[1:]
     if "--today" in a:
         i = a.index("--today")
-        TODAY = datetime.strptime(a[i + 1], "%Y-%m-%d").date()
+        TODAY = datetime.strptime(a[i + 1], DATE_FORMAT).date()
         a = a[:i] + a[i + 2:]
     if "--debug" in a:
         debug = True
