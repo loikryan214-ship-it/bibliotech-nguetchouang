@@ -9,7 +9,6 @@ from datetime import date, datetime, timedelta
 DATA = os.environ.get("BIBLIOTECH_DATA", "data")
 TODAY = None
 debug = False
-cache = {}
 
 
 class Library:
@@ -18,7 +17,6 @@ class Library:
         self.b = []
         self.m = []
         self.l = []
-        self.plugins = {}
         self.load()
 
     # chargement des donnees
@@ -355,32 +353,12 @@ class Library:
         f.close()
         print("Export termine : " + str(n) + " lignes dans " + fname)
 
-    # systeme de plugins (pour plus tard)
-    def register_plugin(self, name, fn, priority=0, options={}):
-        self.plugins[name] = {"fn": fn, "priority": priority, "options": options}
-
-    def run_plugins(self, event, payload=None):
-        res = []
-        for name in sorted(self.plugins, key=lambda n: self.plugins[n]["priority"]):
-            try:
-                res.append(self.plugins[name]["fn"](event, payload, **self.plugins[name]["options"]))
-            except:
-                pass
-        return res
-
 
 def get_today():
     global TODAY
     if TODAY == None:
         return date.today()
     return TODAY
-
-
-# ancienne version du calcul, ne plus utiliser
-def old_calc_fee(days, kind):
-    if kind == "book":
-        return days * 0.3
-    return days * 0.8
 
 
 def process(args):
