@@ -37,9 +37,12 @@ Branche `tp1/nettoyage`, partie de l'étiquette `v0-initial`. Chaque correction 
 | Analyse des options `--today` / `--debug` dans le bloc `__main__`, variable `debug` en minuscules | `__main__` | Fonctions `parse_options()` et `main()`, globales `TODAY` et `DEBUG` documentées | Responsabilité unique |
 | En-tête obsolète (« stagiaire 2019 ») | haut du fichier | Docstring de module | Commentaires utiles |
 | Conversion des lignes CSV en dictionnaires dans `load()` | `load` | Fonctions `parse_book()`, `parse_member()`, `parse_loan()` | Responsabilité unique |
+| Les 3 CSV sont chargés même pour une commande inconnue ou mal utilisée | `process` | `Library()` n'est créée qu'une fois la commande et ses arguments validés (remarque de relecture) | Ne pas faire de travail inutile |
 
 ## Pistes pour la suite
 
+- Gérer un emprunt qui pointe vers un livre ou un membre supprimé (`find_book` / `find_member` renvoient `None`, ce qui fait planter `report`, `export` et `overdue`) et `--today` sans date (`IndexError`). Comportement déjà présent avant le TP, à traiter dans une PR séparée.
+- Faire renvoyer `EXIT_REFUSED` à `return` quand l'emprunt est inconnu ou déjà rendu, comme pour `borrow`. Cela change le comportement (et les tests de référence) : PR séparée.
 - Remplacer les dictionnaires par des `dataclass` (`Book`, `Member`, `Loan`) pour éviter les clés en chaînes.
 - Séparer les couches : accès aux données (CSV), règles métier, affichage.
 - Injecter la date du jour au lieu d'utiliser la globale `TODAY`, puis ajouter des tests unitaires sur `late_fee()` et `borrow_refusal()`.

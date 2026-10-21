@@ -431,7 +431,6 @@ COMMANDS = {
 
 def process(args):
     """Exécute une commande et renvoie le code de sortie."""
-    lib = Library()
     if not args:
         print(
             "Usage : python bibliotech.py <commande> [arguments] [--today AAAA-MM-JJ]"
@@ -446,7 +445,7 @@ def process(args):
     if len(params) < required:
         print(usage)
         return EXIT_USAGE
-    return handler(lib, params)
+    return handler(Library(), params)
 
 
 def parse_options(argv):
