@@ -172,26 +172,8 @@ class Library:
         bk = self.find("b", ln["book"])
         mb = self.find("m", ln["member"])
         t = get_today()
-        d = (t - datetime.strptime(ln["due"], "%Y-%m-%d").date()).days
-        if d > 0:
-            if bk["kind"] == "book":
-                f = d * 0.5
-            elif bk["kind"] == "dvd":
-                f = d * 1.0
-            elif bk["kind"] == "magazine":
-                f = d * 0.2
-            else:
-                f = d * 0.5
-            if mb["type"] == "student":
-                f = f * 0.5
-            elif mb["type"] == "premium":
-                f = 0
-            if f > bk["price"]:
-                f = bk["price"]
-        else:
-            f = 0
-            d = 0
-        f = round(f, 2)
+        d = max((t - datetime.strptime(ln["due"], "%Y-%m-%d").date()).days, 0)
+        f = late_fee(d, bk, mb)
         ln["returned"] = str(t)
         ln["fee"] = f
         self.save()
@@ -213,25 +195,7 @@ class Library:
             book = self.find("b", x["book"])
             member = self.find("m", x["member"])
             nbj = (get_today() - datetime.strptime(x["due"], "%Y-%m-%d").date()).days
-            # calcul penalite
-            if nbj > 0:
-                if book["kind"] == "book":
-                    p = nbj * 0.5
-                elif book["kind"] == "dvd":
-                    p = nbj * 1.0
-                elif book["kind"] == "magazine":
-                    p = nbj * 0.2
-                else:
-                    p = nbj * 0.5
-                if member["type"] == "student":
-                    p = p * 0.5
-                elif member["type"] == "premium":
-                    p = 0
-                if p > book["price"]:
-                    p = book["price"]
-            else:
-                p = 0
-            p = round(p, 2)
+            p = late_fee(nbj, book, member)
             total = total + p
             print(x["id"] + " | " + member["name"] + " | " + book["title"] + " | " + str(nbj) + " jour(s) | " + "%.2f" % p + " EUR")
             # envoi du mail
@@ -264,24 +228,7 @@ class Library:
                     bk = self.find("b", x["book"])
                     mb = self.find("m", x["member"])
                     j = (get_today() - due).days
-                    if j > 0:
-                        if bk["kind"] == "book":
-                            pen = j * 0.5
-                        elif bk["kind"] == "dvd":
-                            pen = j * 1.0
-                        elif bk["kind"] == "magazine":
-                            pen = j * 0.2
-                        else:
-                            pen = j * 0.5
-                        if mb["type"] == "student":
-                            pen = pen * 0.5
-                        elif mb["type"] == "premium":
-                            pen = 0
-                        if pen > bk["price"]:
-                            pen = bk["price"]
-                    else:
-                        pen = 0
-                    a_payer = a_payer + round(pen, 2)
+                    a_payer = a_payer + late_fee(j, bk, mb)
             else:
                 encaisse = encaisse + x["fee"]
             if x["book"] in data2:
@@ -324,30 +271,33 @@ class Library:
                 end = datetime.strptime(x["returned"], "%Y-%m-%d").date()
             else:
                 end = get_today()
-            dl = (end - datetime.strptime(x["due"], "%Y-%m-%d").date()).days
-            if dl > 0:
-                if bk["kind"] == "book":
-                    fee = dl * 0.5
-                elif bk["kind"] == "dvd":
-                    fee = dl * 1.0
-                elif bk["kind"] == "magazine":
-                    fee = dl * 0.2
-                else:
-                    fee = dl * 0.5
-                if mb["type"] == "student":
-                    fee = fee * 0.5
-                elif mb["type"] == "premium":
-                    fee = 0
-                if fee > bk["price"]:
-                    fee = bk["price"]
-            else:
-                fee = 0
-                dl = 0
-            fee = round(fee, 2)
+            dl = max((end - datetime.strptime(x["due"], "%Y-%m-%d").date()).days, 0)
+            fee = late_fee(dl, bk, mb)
             f.write(x["id"] + sep + mb["name"] + sep + bk["title"] + sep + x["start"] + sep + x["due"] + sep + x["returned"] + sep + str(dl) + sep + "%.2f" % fee + "\n")
             n = n + 1
         f.close()
         print("Export termine : " + str(n) + " lignes dans " + fname)
+
+
+def late_fee(days_late, book, member):
+    """Pénalité de retard d'un emprunt, arrondie au centime."""
+    if days_late <= 0:
+        return 0
+    if book["kind"] == "book":
+        fee = days_late * 0.5
+    elif book["kind"] == "dvd":
+        fee = days_late * 1.0
+    elif book["kind"] == "magazine":
+        fee = days_late * 0.2
+    else:
+        fee = days_late * 0.5
+    if member["type"] == "student":
+        fee = fee * 0.5
+    elif member["type"] == "premium":
+        fee = 0
+    if fee > book["price"]:
+        fee = book["price"]
+    return round(fee, 2)
 
 
 def get_today():
