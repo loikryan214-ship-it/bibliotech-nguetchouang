@@ -165,7 +165,7 @@ class Library:
         last_number = max((int(loan["id"][1:]) for loan in self.loans), default=0)
         return "L" + str(last_number + 1).zfill(3)
 
-    def borrow_refusal(self, member, book):
+    def refusal_reason(self, member, book):
         """Motif de refus d'un emprunt, ou None si l'emprunt est autorisé."""
         if not member["active"]:
             return "membre inactif"
@@ -190,7 +190,7 @@ class Library:
         if book is None:
             print("Erreur : livre inconnu")
             return False
-        refusal = self.borrow_refusal(member, book)
+        refusal = self.refusal_reason(member, book)
         if refusal is not None:
             print("Refus : " + refusal)
             return False
