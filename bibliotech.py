@@ -349,7 +349,7 @@ def late_fee(days_late: int, kind: str, member_type: str, price: float) -> float
     return round(min(fee, price), 2)
 
 
-def parse_date(text):
+def parse_date(text: str) -> date:
     return datetime.strptime(text, DATE_FORMAT).date()
 
 
