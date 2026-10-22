@@ -2,7 +2,7 @@
 
 import pytest
 
-from bibliotech import late_fee
+from rules import late_fee
 
 
 @pytest.mark.parametrize(
