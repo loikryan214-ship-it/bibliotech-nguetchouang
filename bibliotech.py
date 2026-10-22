@@ -42,16 +42,6 @@ def read_csv_rows(filename):
     return [line.strip().split(";") for line in lines[1:] if line.strip()]
 
 
-def parse_member(row):
-    return {
-        "id": row[0],
-        "name": row[1],
-        "email": row[2],
-        "type": row[3],
-        "active": row[4] == "1",
-    }
-
-
 def parse_loan(row):
     try:
         fee = float(row[6])
@@ -79,6 +69,24 @@ def find_by_id(items, item_id):
 
 def is_returned(loan):
     return loan["returned"] != ""
+
+
+@dataclass(frozen=True)
+class Member:
+    """Un membre de la bibliothèque."""
+
+    id: str
+    name: str
+    email: str
+    type: str
+    active: bool
+
+    @classmethod
+    def from_row(cls, row):
+        """Construit un Member à partir d'une ligne de members.csv."""
+        return cls(
+            id=row[0], name=row[1], email=row[2], type=row[3], active=row[4] == "1"
+        )
 
 
 @dataclass(frozen=True)
@@ -134,7 +142,7 @@ class Library:
     def load(self):
         """Charge les documents, les membres et les emprunts depuis DATA."""
         self.books = [Book.from_row(row) for row in read_csv_rows("books.csv")]
-        self.members = [parse_member(row) for row in read_csv_rows("members.csv")]
+        self.members = [Member.from_row(row) for row in read_csv_rows("members.csv")]
         self.loans = [parse_loan(row) for row in read_csv_rows("loans.csv")]
         if DEBUG:
             print("chargement ok", len(self.books), len(self.members), len(self.loans))
@@ -194,14 +202,14 @@ class Library:
 
     def refusal_reason(self, member, book):
         """Motif de refus d'un emprunt, ou None si l'emprunt est autorisé."""
-        if not member["active"]:
+        if not member.active:
             return "membre inactif"
-        if self.has_overdue_loan(member["id"]):
+        if self.has_overdue_loan(member.id):
             return "emprunts en retard"
-        limit = MAX_LOANS.get(member["type"], DEFAULT_MAX_LOANS)
-        if self.active_loan_count(member["id"]) >= limit:
+        limit = MAX_LOANS.get(member.type, DEFAULT_MAX_LOANS)
+        if self.active_loan_count(member.id) >= limit:
             return f"limite d'emprunts atteinte ({limit})"
-        if self.is_borrowing(member["id"], book.id):
+        if self.is_borrowing(member.id, book.id):
             return "deja emprunte par ce membre"
         if self.available_copies(book.id) <= 0:
             return "plus d'exemplaire disponible"
@@ -224,7 +232,7 @@ class Library:
         loan = self.create_loan(member, book)
         print(
             f"Emprunt {loan['id']} enregistre : {book.title} pour "
-            f"{member['name']}, retour avant le {loan['due']}"
+            f"{member.name}, retour avant le {loan['due']}"
         )
         return True
 
@@ -234,7 +242,7 @@ class Library:
         due = start + timedelta(days=LOAN_DAYS.get(book.kind, DEFAULT_LOAN_DAYS))
         loan = {
             "id": self.next_loan_id(),
-            "member": member["id"],
+            "member": member.id,
             "book": book.id,
             "start": str(start),
             "due": str(due),
@@ -250,7 +258,7 @@ class Library:
         days = days_late(loan, end)
         book = self.find_book(loan["book"])
         member = self.find_member(loan["member"])
-        return LateFee(days, late_fee(days, book.kind, member["type"], book.price))
+        return LateFee(days, late_fee(days, book.kind, member.type, book.price))
 
     def return_loan(self, loan_id):
         """Enregistre le retour d'un emprunt et sa pénalité éventuelle."""
@@ -286,8 +294,8 @@ class Library:
             result.append(
                 OverdueLoan(
                     loan_id=loan["id"],
-                    member_name=member["name"],
-                    member_email=member["email"],
+                    member_name=member.name,
+                    member_email=member.email,
                     title=book.title,
                     days_late=days,
                     fee=fee,
@@ -310,7 +318,7 @@ class Library:
 
     def print_collection_summary(self):
         copies = sum(book.copies for book in self.books)
-        active = sum(1 for member in self.members if member["active"])
+        active = sum(1 for member in self.members if member.active)
         print(f"Titres : {len(self.books)} ({copies} exemplaires)")
         print(f"Membres : {len(self.members)} dont {active} actifs")
 
@@ -358,7 +366,7 @@ class Library:
                 days, fee = self.loan_fee(loan, end)
                 fields = [
                     loan["id"],
-                    self.find_member(loan["member"])["name"],
+                    self.find_member(loan["member"]).name,
                     self.find_book(loan["book"]).title,
                     loan["start"],
                     loan["due"],
@@ -423,10 +431,10 @@ def cmd_list(lib, params):
 
 def cmd_members(lib, params):
     for member in lib.members:
-        status = "actif" if member["active"] else "inactif"
-        count = lib.active_loan_count(member["id"])
+        status = "actif" if member.active else "inactif"
+        count = lib.active_loan_count(member.id)
         print(
-            f"{member['id']} | {member['name']} | {member['type']} | {status} | "
+            f"{member.id} | {member.name} | {member.type} | {status} | "
             f"{count} emprunt(s) en cours"
         )
     return EXIT_OK
