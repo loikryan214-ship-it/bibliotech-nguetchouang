@@ -28,7 +28,6 @@ from rules import late_fee
         ),
         pytest.param(40, "dvd", "student", 9.9, 9.9, id="etudiant_plafonne_au_prix"),
         pytest.param(4, "cd", "standard", 20.0, 2.0, id="type_inconnu_tarif_livre"),
-        pytest.param(3, "magazine", "student", 5.0, 0.3, id="arrondie_au_centime"),
         pytest.param(
             100, "dvd", "premium", 5.0, 0.0, id="premium_gratuit_meme_au_dela_du_prix"
         ),
@@ -36,3 +35,19 @@ from rules import late_fee
 )
 def test_late_fee_applies_library_rules(days_late, kind, member_type, price, expected):
     assert late_fee(days_late, kind, member_type, price) == pytest.approx(expected)
+
+
+@pytest.mark.parametrize(
+    ("days_late", "kind", "member_type", "expected"),
+    [
+        pytest.param(3, "magazine", "student", 0.3, id="3x0.20x50%_donne_0.30"),
+        pytest.param(3, "magazine", "standard", 0.6, id="3x0.20_donne_0.60"),
+        pytest.param(7, "magazine", "student", 0.7, id="7x0.20x50%_donne_0.70"),
+    ],
+)
+def test_late_fee_is_exactly_rounded_to_the_cent(
+    days_late, kind, member_type, expected
+):
+    # Comparaison exacte (==) : pytest.approx accepterait une valeur non arrondie
+    # comme 0.30000000000000004.
+    assert late_fee(days_late, kind, member_type, 5.0) == expected
