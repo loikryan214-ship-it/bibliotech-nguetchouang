@@ -3,16 +3,10 @@
 import pytest
 
 
-def test_inactive_member_is_refused(library, capsys):
-    accepted = library.borrow("M004", "B002")
-
-    assert accepted is False
-    assert "membre inactif" in capsys.readouterr().out
-
-
 @pytest.mark.parametrize(
     ("member_id", "book_id", "reason"),
     [
+        pytest.param("M004", "B002", "membre inactif", id="membre_inactif"),
         pytest.param("M001", "B002", "emprunts en retard", id="membre_en_retard"),
         pytest.param(
             "M005", "B001", "deja emprunte par ce membre", id="document_deja_emprunte"
@@ -33,8 +27,8 @@ def test_borrow_is_refused_with_reason(library, capsys, member_id, book_id, reas
 
 
 def test_standard_member_is_refused_beyond_three_loans(library, capsys):
-    library.borrow("M005", "B005")
-    library.borrow("M005", "B002")
+    assert library.borrow("M005", "B005") is True
+    assert library.borrow("M005", "B002") is True
     capsys.readouterr()
 
     accepted = library.borrow("M005", "B007")
