@@ -155,7 +155,7 @@ class Library:
             for loan in self.open_loans()
         )
 
-    def has_open_loan(self, member_id, book_id):
+    def is_borrowing(self, member_id, book_id):
         return any(
             loan["member"] == member_id and loan["book"] == book_id
             for loan in self.open_loans()
@@ -174,7 +174,7 @@ class Library:
         limit = MAX_LOANS.get(member["type"], DEFAULT_MAX_LOANS)
         if self.active_loan_count(member["id"]) >= limit:
             return f"limite d'emprunts atteinte ({limit})"
-        if self.has_open_loan(member["id"], book["id"]):
+        if self.is_borrowing(member["id"], book["id"]):
             return "deja emprunte par ce membre"
         if self.available_copies(book["id"]) <= 0:
             return "plus d'exemplaire disponible"
