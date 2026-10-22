@@ -29,13 +29,10 @@ from rules import late_fee
         pytest.param(40, "dvd", "student", 9.9, 9.9, id="etudiant_plafonne_au_prix"),
         pytest.param(4, "cd", "standard", 20.0, 2.0, id="type_inconnu_tarif_livre"),
         pytest.param(3, "magazine", "student", 5.0, 0.3, id="arrondie_au_centime"),
+        pytest.param(
+            100, "dvd", "premium", 5.0, 0.0, id="premium_gratuit_meme_au_dela_du_prix"
+        ),
     ],
 )
 def test_late_fee_applies_library_rules(days_late, kind, member_type, price, expected):
     assert late_fee(days_late, kind, member_type, price) == pytest.approx(expected)
-
-
-def test_late_fee_is_rounded_to_the_cent():
-    fee = late_fee(3, "magazine", "student", 5.0)
-
-    assert fee == round(fee, 2)
