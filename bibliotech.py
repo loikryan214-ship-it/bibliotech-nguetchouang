@@ -9,6 +9,7 @@ import sys
 from collections import Counter
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta
+from typing import NamedTuple
 
 from rules import (
     DEFAULT_LOAN_DAYS,
@@ -102,6 +103,13 @@ class Book:
             price=float(row[4]),
             copies=int(row[5]),
         )
+
+
+class LateFee(NamedTuple):
+    """Jours de retard d'un emprunt et pénalité correspondante."""
+
+    days: int
+    fee: float
 
 
 @dataclass(frozen=True)
@@ -242,7 +250,7 @@ class Library:
         days = days_late(loan, end)
         book = self.find_book(loan["book"])
         member = self.find_member(loan["member"])
-        return days, late_fee(days, book.kind, member["type"], book.price)
+        return LateFee(days, late_fee(days, book.kind, member["type"], book.price))
 
     def return_loan(self, loan_id):
         """Enregistre le retour d'un emprunt et sa pénalité éventuelle."""
@@ -309,7 +317,7 @@ class Library:
     def print_loan_summary(self):
         late_loans = self.overdue_loans()
         collected = sum(loan["fee"] for loan in self.loans if is_returned(loan))
-        pending = sum(self.loan_fee(loan, get_today())[1] for loan in late_loans)
+        pending = sum(self.loan_fee(loan, get_today()).fee for loan in late_loans)
         print(
             f"Emprunts : {len(self.loans)} au total, {len(self.open_loans())} "
             f"en cours, {len(late_loans)} en retard"

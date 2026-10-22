@@ -1,5 +1,7 @@
 """Tests unitaires du calcul des retards (find_overdue_loans), au 21/10/2026."""
 
+from datetime import date
+
 import pytest
 
 
@@ -28,3 +30,12 @@ def test_overdue_loan_carries_reminder_details(library):
     assert first.member_name == "Bruno Lefevre"
     assert first.member_email == "bruno.lefevre@example.com"
     assert first.title == "Fondation"
+
+
+def test_loan_fee_names_days_late_and_fee(library):
+    loan = library.find_loan("L003")
+
+    result = library.loan_fee(loan, date(2026, 10, 21))
+
+    assert result.days == 15
+    assert result.fee == pytest.approx(7.50)
