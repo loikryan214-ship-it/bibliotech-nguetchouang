@@ -220,7 +220,7 @@ class Library:
         days = days_late(loan, end)
         book = self.find_book(loan["book"])
         member = self.find_member(loan["member"])
-        return days, late_fee(days, book, member)
+        return days, late_fee(days, book["kind"], member["type"], book["price"])
 
     def return_loan(self, loan_id):
         """Enregistre le retour d'un emprunt et sa pénalité éventuelle."""
@@ -336,13 +336,13 @@ class Library:
         print(f"Export termine : {len(self.loans)} lignes dans {filename}")
 
 
-def late_fee(days, book, member):
-    """Pénalité pour days jours de retard, arrondie au centime."""
-    if days <= 0:
-        return 0
-    fee = days * DAILY_FEE.get(book["kind"], DEFAULT_DAILY_FEE)
-    fee = fee * FEE_RATE.get(member["type"], DEFAULT_FEE_RATE)
-    return round(min(fee, book["price"]), 2)
+def late_fee(days_late: int, kind: str, member_type: str, price: float) -> float:
+    """Pénalité de retard, réduite selon le membre et plafonnée au prix."""
+    if days_late <= 0:
+        return 0.0
+    fee = days_late * DAILY_FEE.get(kind, DEFAULT_DAILY_FEE)
+    fee = fee * FEE_RATE.get(member_type, DEFAULT_FEE_RATE)
+    return round(min(fee, price), 2)
 
 
 def parse_date(text):
