@@ -48,9 +48,9 @@ def test_accepted_borrow_creates_next_loan_due_in_seven_days_for_a_dvd(library, 
 
     assert accepted is True
     loan = library.find_loan("L013")
-    assert loan["member"] == "M005"
-    assert loan["book"] == "B005"
-    assert loan["due"] == "2026-10-28"
+    assert loan.member_id == "M005"
+    assert loan.book_id == "B005"
+    assert loan.due == "2026-10-28"
     assert "Emprunt L013 enregistre" in capsys.readouterr().out
 
 
@@ -60,7 +60,7 @@ def test_create_loan_records_and_returns_the_loan_without_printing(library, caps
 
     loan = library.create_loan(member, book)
 
-    assert loan["id"] == "L013"
-    assert loan["due"] == "2026-10-28"
+    assert loan.id == "L013"
+    assert loan.due == "2026-10-28"
     assert library.find_loan("L013") is loan
     assert capsys.readouterr().out == ""

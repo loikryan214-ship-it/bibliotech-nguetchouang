@@ -16,7 +16,7 @@ def test_find_by_id_returns_none_when_absent():
 def test_library_finds_book_member_and_loan_by_id(library):
     assert library.find_book("B001").title == "Dune"
     assert library.find_member("M005").name == "Emma Laurent"
-    assert library.find_loan("L004")["book"] == "B006"
+    assert library.find_loan("L004").book_id == "B006"
 
 
 def test_library_returns_none_for_unknown_ids(library):
