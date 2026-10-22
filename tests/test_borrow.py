@@ -58,3 +58,66 @@ def test_create_loan_records_and_returns_the_loan_without_printing(library, caps
     assert loan.due == "2026-10-28"
     assert library.find_loan("L013") is loan
     assert capsys.readouterr().out == ""
+
+
+@pytest.mark.parametrize(
+    ("member_id", "allowed_books", "extra_book", "limit"),
+    [
+        pytest.param(
+            "M007",
+            ["B001", "B002", "B005", "B006", "B007"],
+            "B009",
+            5,
+            id="etudiant_limite_a_5",
+        ),
+        pytest.param(
+            "M008",
+            ["B001", "B002", "B005", "B006", "B007", "B009", "B010", "B011"],
+            "B012",
+            8,
+            id="premium_limite_a_8",
+        ),
+    ],
+)
+def test_member_is_refused_beyond_their_loan_limit(
+    library, capsys, member_id, allowed_books, extra_book, limit
+):
+    for book_id in allowed_books:
+        assert library.borrow(member_id, book_id) is True
+    capsys.readouterr()
+
+    accepted = library.borrow(member_id, extra_book)
+
+    assert accepted is False
+    assert f"limite d'emprunts atteinte ({limit})" in capsys.readouterr().out
+
+
+@pytest.mark.parametrize(
+    ("book_id", "due"),
+    [
+        pytest.param("B002", "2026-11-11", id="livre_21_jours"),
+        pytest.param("B005", "2026-10-28", id="dvd_7_jours"),
+        pytest.param("B007", "2026-10-24", id="magazine_3_jours"),
+    ],
+)
+def test_loan_duration_depends_on_document_kind(library, book_id, due):
+    library.borrow("M005", book_id)
+
+    assert library.find_loan("L013").due == due
+
+
+@pytest.mark.parametrize(
+    ("member_id", "book_id", "error"),
+    [
+        pytest.param("M999", "B001", "Erreur : membre inconnu", id="membre_inconnu"),
+        pytest.param("M005", "B999", "Erreur : livre inconnu", id="livre_inconnu"),
+    ],
+)
+def test_borrow_with_unknown_id_is_rejected(library, capsys, member_id, book_id, error):
+    loans_before = len(library.loans)
+
+    accepted = library.borrow(member_id, book_id)
+
+    assert accepted is False
+    assert error in capsys.readouterr().out
+    assert len(library.loans) == loans_before

@@ -1,6 +1,10 @@
 """Tests unitaires des dataclasses Member et Loan."""
 
+from pathlib import Path
+
 from bibliotech import Loan, Member
+
+DATA_DIR = Path(__file__).resolve().parent / "data"
 
 
 def test_member_from_row_converts_active_flag():
@@ -35,3 +39,10 @@ def test_loan_to_row_keeps_csv_format(library):
     loan = library.find_loan("L002")
 
     assert loan.to_row() == "L002;M002;B005;2026-09-01;2026-09-08;2026-09-12;4.00"
+
+
+def test_loan_from_row_then_to_row_gives_back_every_csv_line():
+    lines = (DATA_DIR / "loans.csv").read_text(encoding="utf-8").splitlines()[1:]
+
+    for line in lines:
+        assert Loan.from_row(line.split(";")).to_row() == line
