@@ -7,6 +7,7 @@ Voir README.md pour les commandes disponibles et les règles métier.
 import os
 import sys
 from collections import Counter
+from dataclasses import dataclass
 from datetime import date, datetime, timedelta
 
 # Dossier des fichiers CSV (modifiable par la variable d'environnement)
@@ -95,6 +96,18 @@ def find_by_id(records, record_id):
 
 def is_returned(loan):
     return loan["returned"] != ""
+
+
+@dataclass(frozen=True)
+class OverdueLoan:
+    """Un emprunt en retard, prêt à être affiché ou rappelé."""
+
+    loan_id: str
+    member_name: str
+    member_email: str
+    title: str
+    days_late: int
+    fee: float
 
 
 class Library:
@@ -249,24 +262,29 @@ class Library:
     def overdue_loans(self):
         return [loan for loan in self.loans if is_overdue(loan)]
 
-    def overdue(self):
-        """Affiche les retards et envoie un rappel à chaque emprunteur."""
+    def find_overdue_loans(self):
+        """Emprunts en retard, triés par échéance, sans rien afficher."""
         late_loans = sorted(self.overdue_loans(), key=lambda x: (x["due"], x["id"]))
-        if not late_loans:
-            print("Aucun retard.")
-            return
-        total = 0
+        result = []
         for loan in late_loans:
             book = self.find_book(loan["book"])
             member = self.find_member(loan["member"])
             days, fee = self.loan_fee(loan, get_today())
-            total = total + fee
-            print(
-                f"{loan['id']} | {member['name']} | {book['title']} | "
-                f"{days} jour(s) | {fee:.2f} EUR"
+            result.append(
+                OverdueLoan(
+                    loan_id=loan["id"],
+                    member_name=member["name"],
+                    member_email=member["email"],
+                    title=book["title"],
+                    days_late=days,
+                    fee=fee,
+                )
             )
-            send_reminder(member, book, days)
-        print(f"Total des penalites en cours : {total:.2f} EUR")
+        return result
+
+    def overdue(self):
+        """Affiche les retards et envoie un rappel à chaque emprunteur."""
+        print_overdue_loans(self.find_overdue_loans())
 
     def report(self):
         """Affiche le rapport d'activité de la bibliothèque."""
@@ -362,11 +380,26 @@ def is_overdue(loan):
     return not is_returned(loan) and parse_date(loan["due"]) < get_today()
 
 
-def send_reminder(member, book, days):
+def print_overdue_loans(overdue_loans):
+    """Affiche les retards, envoie les rappels et le total des pénalités."""
+    if not overdue_loans:
+        print("Aucun retard.")
+        return
+    for item in overdue_loans:
+        print(
+            f"{item.loan_id} | {item.member_name} | {item.title} | "
+            f"{item.days_late} jour(s) | {item.fee:.2f} EUR"
+        )
+        send_reminder(item)
+    total = sum(item.fee for item in overdue_loans)
+    print(f"Total des penalites en cours : {total:.2f} EUR")
+
+
+def send_reminder(item):
     """Envoi (simulé) d'un e-mail de rappel."""
     print(
-        f"EMAIL -> {member['email']} : Rappel, vous devez rendre "
-        f"'{book['title']}' (retard {days} jours)"
+        f"EMAIL -> {item.member_email} : Rappel, vous devez rendre "
+        f"'{item.title}' (retard {item.days_late} jours)"
     )
 
 
