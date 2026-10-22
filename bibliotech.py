@@ -194,14 +194,19 @@ class Library:
         if refusal is not None:
             print("Refus : " + refusal)
             return False
+        self.create_loan(member, book)
+        return True
+
+    def create_loan(self, member, book):
+        """Calcule l'échéance et l'identifiant, enregistre et confirme l'emprunt."""
         start = get_today()
         due = start + timedelta(days=LOAN_DAYS.get(book["kind"], DEFAULT_LOAN_DAYS))
         loan_id = self.next_loan_id()
         self.loans.append(
             {
                 "id": loan_id,
-                "member": member_id,
-                "book": book_id,
+                "member": member["id"],
+                "book": book["id"],
                 "start": str(start),
                 "due": str(due),
                 "returned": "",
@@ -213,7 +218,6 @@ class Library:
             f"Emprunt {loan_id} enregistre : {book['title']} pour "
             f"{member['name']}, retour avant le {due}"
         )
-        return True
 
     def loan_fee(self, loan, end):
         """Jours de retard et pénalité d'un emprunt à la date end."""
