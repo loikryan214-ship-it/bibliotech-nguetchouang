@@ -41,17 +41,6 @@ def read_csv_rows(filename):
     return [line.strip().split(";") for line in lines[1:] if line.strip()]
 
 
-def parse_book(row):
-    return {
-        "id": row[0],
-        "title": row[1],
-        "author": row[2],
-        "kind": row[3],
-        "price": float(row[4]),
-        "copies": int(row[5]),
-    }
-
-
 def parse_member(row):
     return {
         "id": row[0],
@@ -78,16 +67,41 @@ def parse_loan(row):
     }
 
 
-def find_by_id(records, record_id):
-    """Premier enregistrement portant cet identifiant, ou None."""
-    for record in records:
-        if record["id"] == record_id:
-            return record
+def find_by_id(items, item_id):
+    """Premier élément portant cet identifiant (clé ou attribut id), ou None."""
+    for item in items:
+        current_id = item["id"] if isinstance(item, dict) else item.id
+        if current_id == item_id:
+            return item
     return None
 
 
 def is_returned(loan):
     return loan["returned"] != ""
+
+
+@dataclass(frozen=True)
+class Book:
+    """Un titre du catalogue et son nombre d'exemplaires."""
+
+    id: str
+    title: str
+    author: str
+    kind: str
+    price: float
+    copies: int
+
+    @classmethod
+    def from_row(cls, row):
+        """Construit un Book à partir d'une ligne de books.csv."""
+        return cls(
+            id=row[0],
+            title=row[1],
+            author=row[2],
+            kind=row[3],
+            price=float(row[4]),
+            copies=int(row[5]),
+        )
 
 
 @dataclass(frozen=True)
@@ -111,7 +125,7 @@ class Library:
 
     def load(self):
         """Charge les documents, les membres et les emprunts depuis DATA."""
-        self.books = [parse_book(row) for row in read_csv_rows("books.csv")]
+        self.books = [Book.from_row(row) for row in read_csv_rows("books.csv")]
         self.members = [parse_member(row) for row in read_csv_rows("members.csv")]
         self.loans = [parse_loan(row) for row in read_csv_rows("loans.csv")]
         if DEBUG:
@@ -152,7 +166,7 @@ class Library:
     def available_copies(self, book_id):
         book = self.find_book(book_id)
         borrowed = sum(1 for loan in self.open_loans() if loan["book"] == book_id)
-        return book["copies"] - borrowed
+        return book.copies - borrowed
 
     def has_overdue_loan(self, member_id):
         return any(
@@ -179,9 +193,9 @@ class Library:
         limit = MAX_LOANS.get(member["type"], DEFAULT_MAX_LOANS)
         if self.active_loan_count(member["id"]) >= limit:
             return f"limite d'emprunts atteinte ({limit})"
-        if self.is_borrowing(member["id"], book["id"]):
+        if self.is_borrowing(member["id"], book.id):
             return "deja emprunte par ce membre"
-        if self.available_copies(book["id"]) <= 0:
+        if self.available_copies(book.id) <= 0:
             return "plus d'exemplaire disponible"
         return None
 
@@ -205,13 +219,13 @@ class Library:
     def create_loan(self, member, book):
         """Calcule l'échéance et l'identifiant, enregistre et confirme l'emprunt."""
         start = get_today()
-        due = start + timedelta(days=LOAN_DAYS.get(book["kind"], DEFAULT_LOAN_DAYS))
+        due = start + timedelta(days=LOAN_DAYS.get(book.kind, DEFAULT_LOAN_DAYS))
         loan_id = self.next_loan_id()
         self.loans.append(
             {
                 "id": loan_id,
                 "member": member["id"],
-                "book": book["id"],
+                "book": book.id,
                 "start": str(start),
                 "due": str(due),
                 "returned": "",
@@ -220,7 +234,7 @@ class Library:
         )
         self.save()
         print(
-            f"Emprunt {loan_id} enregistre : {book['title']} pour "
+            f"Emprunt {loan_id} enregistre : {book.title} pour "
             f"{member['name']}, retour avant le {due}"
         )
 
@@ -229,7 +243,7 @@ class Library:
         days = days_late(loan, end)
         book = self.find_book(loan["book"])
         member = self.find_member(loan["member"])
-        return days, late_fee(days, book["kind"], member["type"], book["price"])
+        return days, late_fee(days, book.kind, member["type"], book.price)
 
     def return_loan(self, loan_id):
         """Enregistre le retour d'un emprunt et sa pénalité éventuelle."""
@@ -245,7 +259,7 @@ class Library:
         loan["returned"] = str(today)
         loan["fee"] = fee
         self.save()
-        title = self.find_book(loan["book"])["title"]
+        title = self.find_book(loan["book"]).title
         print(
             f"Retour enregistre : {title}. Retard : {days} jour(s). "
             f"Penalite : {fee:.2f} EUR"
@@ -267,7 +281,7 @@ class Library:
                     loan_id=loan["id"],
                     member_name=member["name"],
                     member_email=member["email"],
-                    title=book["title"],
+                    title=book.title,
                     days_late=days,
                     fee=fee,
                 )
@@ -288,7 +302,7 @@ class Library:
         self.print_top_books(TOP_BOOKS_COUNT)
 
     def print_collection_summary(self):
-        copies = sum(book["copies"] for book in self.books)
+        copies = sum(book.copies for book in self.books)
         active = sum(1 for member in self.members if member["active"])
         print(f"Titres : {len(self.books)} ({copies} exemplaires)")
         print(f"Membres : {len(self.members)} dont {active} actifs")
@@ -305,15 +319,14 @@ class Library:
         print(f"Penalites en attente : {pending:.2f} EUR")
 
     def print_loans_by_kind(self):
-        counts = Counter(self.find_book(loan["book"])["kind"] for loan in self.loans)
+        counts = Counter(self.find_book(loan["book"]).kind for loan in self.loans)
         for kind in sorted(counts):
             print(f"  - {kind} : {counts[kind]} emprunt(s)")
 
     def print_top_books(self, limit):
         counts = Counter(loan["book"] for loan in self.loans)
         ranking = sorted(
-            (-count, self.find_book(book_id)["title"])
-            for book_id, count in counts.items()
+            (-count, self.find_book(book_id).title) for book_id, count in counts.items()
         )
         print(f"Top {limit} :")
         for rank, (negative_count, title) in enumerate(ranking[:limit], start=1):
@@ -339,7 +352,7 @@ class Library:
                 fields = [
                     loan["id"],
                     self.find_member(loan["member"])["name"],
-                    self.find_book(loan["book"])["title"],
+                    self.find_book(loan["book"]).title,
                     loan["start"],
                     loan["due"],
                     loan["returned"],
@@ -393,10 +406,10 @@ def get_today():
 
 def cmd_list(lib, params):
     for book in lib.books:
-        available = lib.available_copies(book["id"])
+        available = lib.available_copies(book.id)
         print(
-            f"{book['id']} | {book['title']} | {book['author']} | {book['kind']} | "
-            f"{available}/{book['copies']} disponible(s)"
+            f"{book.id} | {book.title} | {book.author} | {book.kind} | "
+            f"{available}/{book.copies} disponible(s)"
         )
     return EXIT_OK
 
