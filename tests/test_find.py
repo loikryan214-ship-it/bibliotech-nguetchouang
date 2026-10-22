@@ -1,16 +1,18 @@
 """Tests unitaires de la recherche par identifiant (find_by_id et find_*)."""
 
+from types import SimpleNamespace
+
 from bibliotech import find_by_id
 
 
 def test_find_by_id_returns_the_matching_record():
-    records = [{"id": "A1"}, {"id": "B2"}]
+    items = [SimpleNamespace(id="A1"), SimpleNamespace(id="B2")]
 
-    assert find_by_id(records, "B2") is records[1]
+    assert find_by_id(items, "B2") is items[1]
 
 
 def test_find_by_id_returns_none_when_absent():
-    assert find_by_id([{"id": "A1"}], "Z9") is None
+    assert find_by_id([SimpleNamespace(id="A1")], "Z9") is None
 
 
 def test_library_finds_book_member_and_loan_by_id(library):

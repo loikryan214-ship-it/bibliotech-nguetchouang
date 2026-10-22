@@ -43,12 +43,8 @@ def read_csv_rows(filename):
 
 
 def find_by_id(items, item_id):
-    """Premier élément portant cet identifiant (clé ou attribut id), ou None."""
-    for item in items:
-        current_id = item["id"] if isinstance(item, dict) else item.id
-        if current_id == item_id:
-            return item
-    return None
+    """Premier élément dont l'attribut id vaut item_id, ou None."""
+    return next((item for item in items if item.id == item_id), None)
 
 
 def is_returned(loan):
