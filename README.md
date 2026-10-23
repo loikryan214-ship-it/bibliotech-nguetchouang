@@ -190,8 +190,8 @@ Mesures relancées sur la branche `qualite` avec exactement les mêmes commandes
 ### 4.5 Pour aller plus loin
 
 - **Niveau 2** : règles Ruff fixées dans `pyproject.toml` (`ruff check .` sans option est vert), indice de maintenabilité mesuré (`radon mi`), mise en forme vérifiée (`ruff format --check .` : tous les fichiers conformes), règles en dictionnaires, tests paramétrés des cas limites (zéro, négatif, type inconnu).
-- **Bonus, action GitHub** (ajoutée par Lewis) : `.github/workflows/qualite.yml` lance `ruff check .` puis `pytest` à chaque push et sur la pull request. Résultat visible dans l'onglet *Actions*.
-- **Bonus, hook pre-commit** (ajouté par Arol) : `.pre-commit-config.yaml` lance `ruff-check` et `ruff-format` avant chaque commit, qui est refusé si le code n'est pas conforme.
+- **Bonus, action GitHub** : `.github/workflows/qualite.yml` lance `ruff check .` puis `pytest` à chaque push et sur la pull request. Résultat visible dans l'onglet *Actions*.
+- **Bonus, hook pre-commit** : `.pre-commit-config.yaml` lance `ruff-check` et `ruff-format` avant chaque commit, qui est refusé si le code n'est pas conforme. Premier passage `pre-commit run --all-files` : les deux contrôles passent sans modification.
 - **Bonus, couverture** : `pytest --cov=bibliotech --cov=rules --cov=models --cov-branch --cov-report=term-missing` (95 %, voir 4.3).
 
 ## 5. Bilan des trois jours
