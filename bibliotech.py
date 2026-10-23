@@ -7,17 +7,10 @@ Voir README.md pour les commandes disponibles et les règles métier.
 import os
 import sys
 from collections import Counter
-from dataclasses import dataclass
 from datetime import date, datetime, timedelta
-from typing import NamedTuple
 
-from rules import (
-    DEFAULT_LOAN_DAYS,
-    DEFAULT_MAX_LOANS,
-    LOAN_DAYS,
-    MAX_LOANS,
-    late_fee,
-)
+from models import Book, LateFee, Loan, Member, OverdueLoan
+from rules import late_fee, loan_days, loan_limit
 
 # Dossier des fichiers CSV (modifiable par la variable d'environnement)
 DATA = os.environ.get("BIBLIOTECH_DATA", "data")
@@ -30,6 +23,7 @@ EXIT_USAGE = 1
 EXIT_REFUSED = 2
 
 DATE_FORMAT = "%Y-%m-%d"
+TODAY_OPTION_ERROR = "--today attend une date au format AAAA-MM-JJ"
 
 # Nombre de documents affichés dans le classement du rapport
 TOP_BOOKS_COUNT = 3
@@ -49,102 +43,6 @@ def find_by_id(items, item_id):
 
 def is_returned(loan):
     return loan.returned != ""
-
-
-@dataclass(frozen=True)
-class Member:
-    """Un membre de la bibliothèque."""
-
-    id: str
-    name: str
-    email: str
-    type: str
-    active: bool
-
-    @classmethod
-    def from_row(cls, row):
-        """Construit un Member à partir d'une ligne de members.csv."""
-        return cls(
-            id=row[0], name=row[1], email=row[2], type=row[3], active=row[4] == "1"
-        )
-
-
-@dataclass
-class Loan:
-    """Un emprunt ; returned et fee changent au retour du document."""
-
-    id: str
-    member_id: str
-    book_id: str
-    start: str
-    due: str
-    returned: str = ""
-    fee: float = 0
-
-    @classmethod
-    def from_row(cls, row):
-        """Construit un Loan à partir d'une ligne de loans.csv."""
-        try:
-            fee = float(row[6])
-        except (ValueError, IndexError):
-            fee = 0
-        return cls(
-            id=row[0],
-            member_id=row[1],
-            book_id=row[2],
-            start=row[3],
-            due=row[4],
-            returned=row[5],
-            fee=fee,
-        )
-
-    def to_row(self):
-        """Ligne de loans.csv correspondant à cet emprunt."""
-        fields = [self.id, self.member_id, self.book_id, self.start, self.due]
-        return ";".join([*fields, self.returned, f"{self.fee:.2f}"])
-
-
-@dataclass(frozen=True)
-class Book:
-    """Un titre du catalogue et son nombre d'exemplaires."""
-
-    id: str
-    title: str
-    author: str
-    kind: str
-    price: float
-    copies: int
-
-    @classmethod
-    def from_row(cls, row):
-        """Construit un Book à partir d'une ligne de books.csv."""
-        return cls(
-            id=row[0],
-            title=row[1],
-            author=row[2],
-            kind=row[3],
-            price=float(row[4]),
-            copies=int(row[5]),
-        )
-
-
-class LateFee(NamedTuple):
-    """Jours de retard d'un emprunt et pénalité correspondante."""
-
-    days: int
-    fee: float
-
-
-@dataclass(frozen=True)
-class OverdueLoan:
-    """Un emprunt en retard, prêt à être affiché ou rappelé."""
-
-    loan_id: str
-    member_name: str
-    member_email: str
-    title: str
-    days_late: int
-    fee: float
 
 
 class Library:
@@ -207,14 +105,26 @@ class Library:
         return "L" + str(last_number + 1).zfill(3)
 
     def refusal_reason(self, member, book):
-        """Motif de refus d'un emprunt, ou None si l'emprunt est autorisé."""
+        """Motif de refus d'un emprunt, ou None si l'emprunt est autorisé.
+
+        Les règles du membre passent avant celles du document : l'ordre des
+        vérifications fixe le message affiché.
+        """
+        return self.member_refusal(member) or self.book_refusal(member, book)
+
+    def member_refusal(self, member):
+        """Motif lié au membre (actif, sans retard, sous sa limite), ou None."""
         if not member.active:
             return "membre inactif"
         if self.has_overdue_loan(member.id):
             return "emprunts en retard"
-        limit = MAX_LOANS.get(member.type, DEFAULT_MAX_LOANS)
+        limit = loan_limit(member.type)
         if self.active_loan_count(member.id) >= limit:
             return f"limite d'emprunts atteinte ({limit})"
+        return None
+
+    def book_refusal(self, member, book):
+        """Motif lié au document (déjà emprunté, plus d'exemplaire), ou None."""
         if self.is_borrowing(member.id, book.id):
             return "deja emprunte par ce membre"
         if self.available_copies(book.id) <= 0:
@@ -245,7 +155,7 @@ class Library:
     def create_loan(self, member, book):
         """Calcule l'échéance et l'identifiant, enregistre et renvoie l'emprunt."""
         start = get_today()
-        due = start + timedelta(days=LOAN_DAYS.get(book.kind, DEFAULT_LOAN_DAYS))
+        due = start + timedelta(days=loan_days(book.kind))
         loan = Loan(
             id=self.next_loan_id(),
             member_id=member.id,
@@ -281,7 +191,7 @@ class Library:
         title = self.find_book(loan.book_id).title
         print(
             f"Retour enregistre : {title}. Retard : {days} jour(s). "
-            f"Penalite : {fee:.2f} EUR"
+            f"Penalite : {format_eur(fee)}"
         )
 
     def overdue_loans(self):
@@ -334,8 +244,8 @@ class Library:
             f"Emprunts : {len(self.loans)} au total, {len(self.open_loans())} "
             f"en cours, {len(late_loans)} en retard"
         )
-        print(f"Penalites encaissees : {collected:.2f} EUR")
-        print(f"Penalites en attente : {pending:.2f} EUR")
+        print(f"Penalites encaissees : {format_eur(collected)}")
+        print(f"Penalites en attente : {format_eur(pending)}")
 
     def print_loans_by_kind(self):
         counts = Counter(self.find_book(loan.book_id).kind for loan in self.loans)
@@ -382,6 +292,11 @@ class Library:
         print(f"Export termine : {len(self.loans)} lignes dans {filename}")
 
 
+def format_eur(amount):
+    """Montant affiché avec deux décimales et la devise, ex. « 7.50 EUR »."""
+    return f"{amount:.2f} EUR"
+
+
 def parse_date(text: str) -> date:
     return datetime.strptime(text, DATE_FORMAT).date()
 
@@ -403,11 +318,11 @@ def print_overdue_loans(overdue_loans):
     for item in overdue_loans:
         print(
             f"{item.loan_id} | {item.member_name} | {item.title} | "
-            f"{item.days_late} jour(s) | {item.fee:.2f} EUR"
+            f"{item.days_late} jour(s) | {format_eur(item.fee)}"
         )
         send_reminder(item)
     total = sum(item.fee for item in overdue_loans)
-    print(f"Total des penalites en cours : {total:.2f} EUR")
+    print(f"Total des penalites en cours : {format_eur(total)}")
 
 
 def send_reminder(item):
@@ -501,12 +416,18 @@ def process(args):
 
 
 def parse_options(argv):
-    """Retire --today et --debug des arguments ; renvoie (args, today, debug)."""
+    """Retire --today et --debug des arguments ; renvoie (args, today, debug).
+
+    Lève ValueError si --today n'est pas suivi d'une date valide.
+    """
     args = list(argv)
     today = None
     if "--today" in args:
         i = args.index("--today")
-        today = parse_date(args[i + 1])
+        try:
+            today = parse_date(args[i + 1])
+        except (IndexError, ValueError):
+            raise ValueError(TODAY_OPTION_ERROR) from None
         del args[i : i + 2]
     debug = "--debug" in args
     if debug:
@@ -516,7 +437,11 @@ def parse_options(argv):
 
 def main(argv):
     global TODAY, DEBUG
-    args, TODAY, DEBUG = parse_options(argv)
+    try:
+        args, TODAY, DEBUG = parse_options(argv)
+    except ValueError as error:
+        print(f"Erreur : {error}")
+        return EXIT_USAGE
     return process(args)
 
 
