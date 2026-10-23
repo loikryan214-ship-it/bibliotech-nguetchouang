@@ -288,7 +288,7 @@ class Library:
         title = self.find_book(loan.book_id).title
         print(
             f"Retour enregistre : {title}. Retard : {days} jour(s). "
-            f"Penalite : {fee:.2f} EUR"
+            f"Penalite : {format_eur(fee)}"
         )
 
     def overdue_loans(self):
@@ -341,8 +341,8 @@ class Library:
             f"Emprunts : {len(self.loans)} au total, {len(self.open_loans())} "
             f"en cours, {len(late_loans)} en retard"
         )
-        print(f"Penalites encaissees : {collected:.2f} EUR")
-        print(f"Penalites en attente : {pending:.2f} EUR")
+        print(f"Penalites encaissees : {format_eur(collected)}")
+        print(f"Penalites en attente : {format_eur(pending)}")
 
     def print_loans_by_kind(self):
         counts = Counter(self.find_book(loan.book_id).kind for loan in self.loans)
@@ -389,6 +389,11 @@ class Library:
         print(f"Export termine : {len(self.loans)} lignes dans {filename}")
 
 
+def format_eur(amount):
+    """Montant affiché avec deux décimales et la devise, ex. « 7.50 EUR »."""
+    return f"{amount:.2f} EUR"
+
+
 def parse_date(text: str) -> date:
     return datetime.strptime(text, DATE_FORMAT).date()
 
@@ -410,11 +415,11 @@ def print_overdue_loans(overdue_loans):
     for item in overdue_loans:
         print(
             f"{item.loan_id} | {item.member_name} | {item.title} | "
-            f"{item.days_late} jour(s) | {item.fee:.2f} EUR"
+            f"{item.days_late} jour(s) | {format_eur(item.fee)}"
         )
         send_reminder(item)
     total = sum(item.fee for item in overdue_loans)
-    print(f"Total des penalites en cours : {total:.2f} EUR")
+    print(f"Total des penalites en cours : {format_eur(total)}")
 
 
 def send_reminder(item):
