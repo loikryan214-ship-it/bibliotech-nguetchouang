@@ -20,6 +20,16 @@ FEE_RATE = {"student": 0.5, "premium": 0}
 DEFAULT_FEE_RATE = 1
 
 
+def loan_days(kind: str) -> int:
+    """Durée d'emprunt en jours ; un type inconnu suit la règle des livres."""
+    return LOAN_DAYS.get(kind, DEFAULT_LOAN_DAYS)
+
+
+def loan_limit(member_type: str) -> int:
+    """Nombre maximum d'emprunts simultanés ; un type inconnu est standard."""
+    return MAX_LOANS.get(member_type, DEFAULT_MAX_LOANS)
+
+
 def late_fee(days_late: int, kind: str, member_type: str, price: float) -> float:
     """Pénalité de retard, réduite selon le membre et plafonnée au prix."""
     if days_late <= 0:

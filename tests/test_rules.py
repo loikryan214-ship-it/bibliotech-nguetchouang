@@ -2,7 +2,7 @@
 
 import pytest
 
-from rules import late_fee
+from rules import late_fee, loan_days, loan_limit
 
 
 @pytest.mark.parametrize(
@@ -51,3 +51,30 @@ def test_late_fee_is_exactly_rounded_to_the_cent(
     # Comparaison exacte (==) : pytest.approx accepterait une valeur non arrondie
     # comme 0.30000000000000004.
     assert late_fee(days_late, kind, member_type, 5.0) == expected
+
+
+@pytest.mark.parametrize(
+    ("kind", "expected"),
+    [
+        pytest.param("book", 21, id="livre_21_jours"),
+        pytest.param("dvd", 7, id="dvd_7_jours"),
+        pytest.param("magazine", 3, id="magazine_3_jours"),
+        pytest.param("cd", 21, id="type_inconnu_duree_livre"),
+        pytest.param("", 21, id="type_vide_duree_livre"),
+    ],
+)
+def test_loan_days_depends_on_document_kind(kind, expected):
+    assert loan_days(kind) == expected
+
+
+@pytest.mark.parametrize(
+    ("member_type", "expected"),
+    [
+        pytest.param("standard", 3, id="standard_3"),
+        pytest.param("student", 5, id="etudiant_5"),
+        pytest.param("premium", 8, id="premium_8"),
+        pytest.param("vip", 3, id="type_inconnu_limite_standard"),
+    ],
+)
+def test_loan_limit_depends_on_member_type(member_type, expected):
+    assert loan_limit(member_type) == expected

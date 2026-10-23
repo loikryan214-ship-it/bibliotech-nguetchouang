@@ -11,13 +11,7 @@ from dataclasses import dataclass
 from datetime import date, datetime, timedelta
 from typing import NamedTuple
 
-from rules import (
-    DEFAULT_LOAN_DAYS,
-    DEFAULT_MAX_LOANS,
-    LOAN_DAYS,
-    MAX_LOANS,
-    late_fee,
-)
+from rules import late_fee, loan_days, loan_limit
 
 # Dossier des fichiers CSV (modifiable par la variable d'environnement)
 DATA = os.environ.get("BIBLIOTECH_DATA", "data")
@@ -221,7 +215,7 @@ class Library:
             return "membre inactif"
         if self.has_overdue_loan(member.id):
             return "emprunts en retard"
-        limit = MAX_LOANS.get(member.type, DEFAULT_MAX_LOANS)
+        limit = loan_limit(member.type)
         if self.active_loan_count(member.id) >= limit:
             return f"limite d'emprunts atteinte ({limit})"
         return None
@@ -258,7 +252,7 @@ class Library:
     def create_loan(self, member, book):
         """Calcule l'échéance et l'identifiant, enregistre et renvoie l'emprunt."""
         start = get_today()
-        due = start + timedelta(days=LOAN_DAYS.get(book.kind, DEFAULT_LOAN_DAYS))
+        due = start + timedelta(days=loan_days(book.kind))
         loan = Loan(
             id=self.next_loan_id(),
             member_id=member.id,
