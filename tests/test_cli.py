@@ -34,3 +34,33 @@ def test_invalid_today_option_prints_usage_error_instead_of_crashing(
 
     assert exit_code == bibliotech.EXIT_USAGE
     assert "--today attend une date au format AAAA-MM-JJ" in capsys.readouterr().out
+
+
+@pytest.mark.parametrize(
+    ("args", "exit_code", "message"),
+    [
+        pytest.param([], bibliotech.EXIT_USAGE, "Usage :", id="sans_commande"),
+        pytest.param(
+            ["fly"], bibliotech.EXIT_USAGE, "Commande inconnue", id="inconnue"
+        ),
+        pytest.param(
+            ["borrow", "M005"],
+            bibliotech.EXIT_USAGE,
+            "Usage : borrow",
+            id="argument_manquant",
+        ),
+        pytest.param(
+            ["borrow", "M004", "B002"],
+            bibliotech.EXIT_REFUSED,
+            "Refus",
+            id="emprunt_refuse",
+        ),
+        pytest.param(["list"], bibliotech.EXIT_OK, "B001 | Dune", id="liste"),
+        pytest.param(["members"], bibliotech.EXIT_OK, "M008 | Hugo Roux", id="membres"),
+    ],
+)
+def test_process_dispatches_commands_with_exit_codes(
+    library, capsys, args, exit_code, message
+):
+    assert bibliotech.process(args) == exit_code
+    assert message in capsys.readouterr().out
