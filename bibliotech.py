@@ -208,7 +208,15 @@ class Library:
         return "L" + str(last_number + 1).zfill(3)
 
     def refusal_reason(self, member, book):
-        """Motif de refus d'un emprunt, ou None si l'emprunt est autorisé."""
+        """Motif de refus d'un emprunt, ou None si l'emprunt est autorisé.
+
+        Les règles du membre passent avant celles du document : l'ordre des
+        vérifications fixe le message affiché.
+        """
+        return self.member_refusal(member) or self.book_refusal(member, book)
+
+    def member_refusal(self, member):
+        """Motif lié au membre (actif, sans retard, sous sa limite), ou None."""
         if not member.active:
             return "membre inactif"
         if self.has_overdue_loan(member.id):
@@ -216,6 +224,10 @@ class Library:
         limit = MAX_LOANS.get(member.type, DEFAULT_MAX_LOANS)
         if self.active_loan_count(member.id) >= limit:
             return f"limite d'emprunts atteinte ({limit})"
+        return None
+
+    def book_refusal(self, member, book):
+        """Motif lié au document (déjà emprunté, plus d'exemplaire), ou None."""
         if self.is_borrowing(member.id, book.id):
             return "deja emprunte par ce membre"
         if self.available_copies(book.id) <= 0:
