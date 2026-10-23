@@ -5,12 +5,14 @@ Groupe : NGUETCHOUANG NANSI Ryan · BIEGAIN Arol ([@Arol14](https://github.com/A
 
 En trois jours, nous avons transformé une application qui fonctionnait mais se lisait mal en un code lisible, testé et mesuré, **sans changer son comportement** : les 21 tests de caractérisation fournis sont verts à chaque commit, du premier au dernier.
 
-| | Départ (`v0-initial`) | Fin TP 2 (`v2-fin-j2`) | Fin TP 3 (`qualite`) |
-| --- | --- | --- | --- |
-| Avertissements Ruff (E, W, F, B, S, C90, SIM) | 52 | 0 | 0 |
-| Complexité moyenne (radon) | B (8,3) | A (2,21) | A (2,16) |
-| Pire fonction (radon) | `do_stuff` D (23) | `refusal_reason` B (6) | `Library.load` A (5) |
-| Tests verts | 21 | 74 | 104 |
+| | Départ (`v0-initial`) | Fin TP 1 | Fin TP 2 (`v2-fin-j2`) | Fin TP 3 (`qualite`) |
+| --- | --- | --- | --- | --- |
+| Avertissements Ruff (E, W, F, B, S, C90, SIM) | 52 | 0 | 0 | 0 |
+| Complexité moyenne (radon) | B (8,29) | A (2,32) | A (2,21) | A (2,16) |
+| Pire fonction (radon) | `do_stuff` D (23) | `borrow_refusal` B (6) | `refusal_reason` B (6) | `Library.load` A (5) |
+| Tests verts | 21 | 21 | 74 | 104 |
+
+Le détail de chaque étape, avec les commandes Git qui permettent de le vérifier, est dans la partie [5.1](#51-évolution-mesurée-sur-les-trois-tp).
 
 ## 1. Présentation
 
@@ -178,7 +180,51 @@ Mesures relancées sur la branche `qualite` avec exactement les mêmes commandes
 - **Les tests passent de 74 à 104** et la couverture de 63 % à 95 %. Les lignes restantes non couvertes sont le mode `--debug`, les fonctions `cmd_*` d'une ligne déjà exercées par les tests de caractérisation, et le bloc `if __name__ == "__main__"`.
 - **Ce qui n'est pas mesuré mais a changé** : un cas de plantage en moins (`--today`), et un seul endroit pour chaque règle métier et pour le format des montants.
 
-### 4.4 Dette restante
+### 4.4 Comparaison avec Git
+
+Commandes de l'étape 4.2 du guide, sur la branche `qualite` :
+
+```bash
+git log --oneline v2-fin-j2..qualite     # les commits du TP 3
+git diff --stat v2-fin-j2..qualite       # les fichiers modifiés
+```
+
+**Commits du TP 3** (du plus ancien au plus récent, chacun avec `pytest` vert), plus le commit qui ajoute cette comparaison au README :
+
+| Commit | Type | Ce qui change |
+| --- | --- | --- |
+| [927b707](https://github.com/loikryan214-ship-it/bibliotech-nguetchouang-biegain/commit/927b707) | `fix(fiabilite)` | `--today` sans date ou avec une date invalide affiche une erreur d'usage au lieu d'un traceback |
+| [91668bb](https://github.com/loikryan214-ship-it/bibliotech-nguetchouang-biegain/commit/91668bb) | `refactor(complexite)` | `refusal_reason` (B 6) découpée en `member_refusal` et `book_refusal` |
+| [0549c40](https://github.com/loikryan214-ship-it/bibliotech-nguetchouang-biegain/commit/0549c40) | `refactor(duplication)` | durée et limite d'emprunt dans `rules.loan_days` et `rules.loan_limit` |
+| [4a2da51](https://github.com/loikryan214-ship-it/bibliotech-nguetchouang-biegain/commit/4a2da51) | `refactor(duplication)` | `format_eur` remplace les 5 copies du format des montants |
+| [8e52e72](https://github.com/loikryan214-ship-it/bibliotech-nguetchouang-biegain/commit/8e52e72) | `refactor(maintenabilite)` | dataclasses déplacées dans `models.py` |
+| [38c3975](https://github.com/loikryan214-ship-it/bibliotech-nguetchouang-biegain/commit/38c3975) | `chore(ruff)` | règles Ruff du projet fixées dans `pyproject.toml` |
+| [4087127](https://github.com/loikryan214-ship-it/bibliotech-nguetchouang-biegain/commit/4087127) | `test(couverture)` | tests du retour, du rapport, de l'export, des rappels et des commandes |
+| [b07c368](https://github.com/loikryan214-ship-it/bibliotech-nguetchouang-biegain/commit/b07c368) | `docs` | README final des TP 1 à 3 |
+| [bc816ba](https://github.com/loikryan214-ship-it/bibliotech-nguetchouang-biegain/commit/bc816ba) | `chore(qualite)` | hook pre-commit Ruff |
+| [c504825](https://github.com/loikryan214-ship-it/bibliotech-nguetchouang-biegain/commit/c504825) | `ci` | action GitHub `ruff check` + `pytest` |
+| [efcb599](https://github.com/loikryan214-ship-it/bibliotech-nguetchouang-biegain/commit/efcb599) | `docs(readme)` | précision des bonus dans le README |
+
+**Fichiers modifiés** (`git diff --stat v2-fin-j2..qualite`, avant ce dernier commit de documentation) :
+
+```
+ .github/workflows/qualite.yml |  17 +++
+ .pre-commit-config.yaml       |   6 +
+ README.md                     | 265 +++++++++++++++++++++++++++++++++++-------
+ bibliotech.py                 | 157 +++++++------------------
+ models.py                     | 104 +++++++++++++++++
+ pyproject.toml                |  10 +-
+ rules.py                      |  10 ++
+ tests/test_cli.py             |  66 +++++++++++
+ tests/test_format.py          |  18 +++
+ tests/test_return_report.py   |  63 ++++++++++
+ tests/test_rules.py           |  29 ++++-
+ 11 files changed, 584 insertions(+), 161 deletions(-)
+```
+
+**Lecture** : `bibliotech.py` perd plus de lignes qu'il n'en gagne (157 lignes touchées, surtout des suppressions) parce que les modèles partent dans `models.py` (104 lignes) ; `rules.py` gagne les deux règles `loan_days` et `loan_limit`. Les tests ajoutés ou complétés représentent environ 176 lignes dans 4 fichiers. Aucun fichier de `tests/golden/`, `tests/test_caracterisation.py` ou `data/` n'apparaît dans la liste : le comportement de référence n'a pas été touché.
+
+### 4.5 Dette restante
 
 | Dette | Pourquoi elle reste | Ce qu'il faudrait faire |
 | --- | --- | --- |
@@ -187,7 +233,7 @@ Mesures relancées sur la branche `qualite` avec exactement les mêmes commandes
 | `return` renvoie le code 0 même pour un emprunt inconnu ou déjà rendu | Le corriger change un code de sortie figé dans `tests/golden/`, que nous ne devons pas modifier | Renvoyer `EXIT_REFUSED` dans une évolution validée, avec mise à jour des références |
 | `bibliotech.py` mélange encore la classe `Library` (stockage + règles d'emprunt) et la ligne de commande | Déplacer `Library` change le module où les tests patchent `DATA` et `TODAY` | Créer `cli.py` et `storage.py` une fois la date injectée (première ligne de ce tableau) |
 
-### 4.5 Pour aller plus loin
+### 4.6 Pour aller plus loin
 
 - **Niveau 2** : règles Ruff fixées dans `pyproject.toml` (`ruff check .` sans option est vert), indice de maintenabilité mesuré (`radon mi`), mise en forme vérifiée (`ruff format --check .` : tous les fichiers conformes), règles en dictionnaires, tests paramétrés des cas limites (zéro, négatif, type inconnu).
 - **Bonus, action GitHub** : `.github/workflows/qualite.yml` lance `ruff check .` puis `pytest` à chaque push et sur la pull request. Résultat visible dans l'onglet *Actions*.
@@ -195,6 +241,40 @@ Mesures relancées sur la branche `qualite` avec exactement les mêmes commandes
 - **Bonus, couverture** : `pytest --cov=bibliotech --cov=rules --cov=models --cov-branch --cov-report=term-missing` (95 %, voir 4.3).
 
 ## 5. Bilan des trois jours
+
+### 5.1 Évolution mesurée sur les trois TP
+
+Les mêmes commandes que l'étape 2.1 du TP 3 ont été relancées sur l'état final de chaque TP (`v0-initial`, fusion de la PR #1 `aed30d7`, `v2-fin-j2`, `qualite`) :
+
+| Indicateur | Départ | Fin TP 1 | Fin TP 2 | Fin TP 3 |
+| --- | --- | --- | --- | --- |
+| Avertissements Ruff (E, W, F, B, S, C90, SIM, hors tests) | 52 | 0 | 0 | 0 |
+| Complexité moyenne (radon) | B (8,29) | A (2,32) | A (2,21) | A (2,16) |
+| Pire fonction | `do_stuff` D (23) | `borrow_refusal` B (6) | `refusal_reason` B (6) | `Library.load` A (5) |
+| Fonctions notées C ou pire | 4 (`do_stuff` D 23, `report` D 21, `process` C 16, `overdue` C 13) | 0 | 0 | 0 |
+| Indice de maintenabilité de `bibliotech.py` | B (10,13) | A (24,42) | A (19,76) | A (25,87) |
+| Tests verts | 21 | 21 | 74 | 104 |
+| Lignes de code Python (hors tests) | 442 | 472 | 553 | 592 |
+
+**Ce que montre le tableau**
+
+- **Le TP 1 fait l'essentiel du gain sur les mesures** : Ruff 52 → 0, complexité moyenne 8,29 → 2,32, plus aucune fonction en C ou D. C'est le nettoyage des défauts visibles (`eval`, duplication, `if` imbriqués).
+- **Le TP 2 fait l'essentiel du gain sur les tests** : 21 → 74, chaque refactoring étant précédé de son test. L'indice de maintenabilité de `bibliotech.py` baisse (24,42 → 19,76) parce que les dataclasses y ont été ajoutées ; le TP 3 corrige ce point en les déplaçant dans `models.py`.
+- **Le TP 3 traite ce que les outils voient mal** : fiabilité de la ligne de commande, duplication résiduelle, découpage en modules, couverture (63 % → 95 %), et automatisation des contrôles.
+- **Le nombre de lignes augmente** (442 → 592) : docstrings, types, dataclasses et noms explicites prennent de la place. Un code plus long peut être plus simple, la complexité moyenne ayant été divisée par presque 4.
+
+**Comparer les TP avec Git**
+
+| TP | Pull request | Commandes | Commits | Fichiers modifiés |
+| --- | --- | --- | --- | --- |
+| TP 1 | [#1](https://github.com/loikryan214-ship-it/bibliotech-nguetchouang-biegain/pull/1) | `git log --oneline v0-initial..aed30d7`, `git diff --stat v0-initial..aed30d7` | 17 | 2 fichiers, +478 / −400 (`bibliotech.py`, `SYNTHESE_TP1.md`) |
+| TP 2 | [#2](https://github.com/loikryan214-ship-it/bibliotech-nguetchouang-biegain/pull/2) | `git log --oneline aed30d7..v2-fin-j2`, `git diff --stat aed30d7..v2-fin-j2` | 22 | 17 fichiers, +673 / −162 (dont 9 fichiers de tests et 3 CSV de `tests/data/`) |
+| TP 3 | [#3](https://github.com/loikryan214-ship-it/bibliotech-nguetchouang-biegain/pull/3) | `git log --oneline v2-fin-j2..qualite`, `git diff --stat v2-fin-j2..qualite` | 11 | 11 fichiers, +584 / −161 (voir 4.4) |
+| Total | | `git diff --stat v0-initial..qualite` | 50 | 25 fichiers, +1459 / −447 |
+
+Le TP 1 ne touche qu'au code de l'application, le TP 2 surtout aux tests, le TP 3 à la structure, aux contrôles automatiques et à la documentation.
+
+### 5.2 Ce que nous retenons
 
 **Acquis**
 
@@ -209,7 +289,7 @@ Mesures relancées sur la branche `qualite` avec exactement les mêmes commandes
 - Les tests unitaires écrivaient au départ dans une copie de `data/` qui pouvait évoluer : nous avons créé un jeu dédié `tests/data/`.
 - Travailler à trois sur une même branche : il faut récupérer le travail des autres (`git pull`) avant chaque push pour éviter les branches divergentes.
 
-**Améliorations possibles** : injecter la date du jour, découper `bibliotech.py` en `cli.py` et `storage.py`, valider les références à la lecture des CSV, puis traiter la dette de la partie 4.4.
+**Améliorations possibles** : injecter la date du jour, découper `bibliotech.py` en `cli.py` et `storage.py`, valider les références à la lecture des CSV, puis traiter la dette de la partie 4.5.
 
 ## 6. Exécution du projet
 
