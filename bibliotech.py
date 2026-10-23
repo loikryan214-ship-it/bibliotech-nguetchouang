@@ -30,6 +30,7 @@ EXIT_USAGE = 1
 EXIT_REFUSED = 2
 
 DATE_FORMAT = "%Y-%m-%d"
+TODAY_OPTION_ERROR = "--today attend une date au format AAAA-MM-JJ"
 
 # Nombre de documents affichés dans le classement du rapport
 TOP_BOOKS_COUNT = 3
@@ -501,12 +502,18 @@ def process(args):
 
 
 def parse_options(argv):
-    """Retire --today et --debug des arguments ; renvoie (args, today, debug)."""
+    """Retire --today et --debug des arguments ; renvoie (args, today, debug).
+
+    Lève ValueError si --today n'est pas suivi d'une date valide.
+    """
     args = list(argv)
     today = None
     if "--today" in args:
         i = args.index("--today")
-        today = parse_date(args[i + 1])
+        try:
+            today = parse_date(args[i + 1])
+        except (IndexError, ValueError):
+            raise ValueError(TODAY_OPTION_ERROR) from None
         del args[i : i + 2]
     debug = "--debug" in args
     if debug:
@@ -516,7 +523,11 @@ def parse_options(argv):
 
 def main(argv):
     global TODAY, DEBUG
-    args, TODAY, DEBUG = parse_options(argv)
+    try:
+        args, TODAY, DEBUG = parse_options(argv)
+    except ValueError as error:
+        print(f"Erreur : {error}")
+        return EXIT_USAGE
     return process(args)
 
 
